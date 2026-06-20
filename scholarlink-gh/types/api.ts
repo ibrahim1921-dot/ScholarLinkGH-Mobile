@@ -1,0 +1,144 @@
+import { applicationStatuses } from '../constants/options';
+
+export type EducationLevel = 'SHS_GRADUATE' | 'UNIVERSITY_GRADUATE';
+
+export type ApiResponse = {
+  success: boolean;
+  message: string;
+};
+
+export type AuthResponse = {
+  accessToken: string;
+  refreshToken: string;
+  email: string;
+  username: string;
+  role: string;
+};
+
+export type Page<T> = {
+  content: T[];
+  totalPages: number;
+  totalElements: number;
+  number: number;
+  size: number;
+};
+
+export type StudentProfile = {
+  id?: number;
+  educationLevel?: EducationLevel;
+  gpa?: number;
+  fieldOfStudy?: string;
+  institution?: string;
+  graduationYear?: number;
+  countryPreference?: string;
+  languageProficiency?: string;
+  financialNeed?: boolean;
+  bio?: string;
+  achievements?: string;
+  profileStrengthScore?: number | null;
+  profileImprovementSuggestions?: string | null;
+  documentDisclaimerAcceptedAt?: string | null;
+};
+
+export type ProfilePayload = {
+  education_level?: EducationLevel;
+  gpa?: number;
+  field_of_study?: string;
+  institution?: string;
+  graduation_year?: number;
+  country_preference?: string;
+  language_proficiency?: string;
+  financial_need?: boolean;
+  bio?: string;
+  achievements?: string;
+};
+
+export type Scholarship = {
+  id: number;
+  name: string;
+  provider: string;
+  category: string;
+  destinationCountry: string;
+  eligibleFields: string;
+  gpaRequirement: number;
+  fundingCoverage: string;
+  deadline: string;
+  daysUntilDeadline: number;
+  officialLink: string;
+  requirements: string;
+  selectionCriteria: string;
+  additionalNotes?: string;
+  verified: boolean;
+  createdAt: string;
+};
+
+export type ScholarshipMatch = {
+  matchId: number;
+  scholarshipId: number;
+  scholarshipName: string;
+  provider: string;
+  destinationCountry: string;
+  deadline: string;
+  fundingCoverage: string;
+  officialLink: string;
+  matchScore: number;
+  matchExplanation: string;
+  matchedAt: string;
+};
+
+export type EligibilityResult = {
+  meets?: boolean;
+  criteria_met?: string[];
+  criteria_missing?: string[];
+  actions_required?: string[];
+  [key: string]: unknown;
+};
+
+export type ApplicationStatus = (typeof applicationStatuses)[number];
+
+export type ApplicationTracker = {
+  id: number;
+  scholarshipId: number;
+  scholarshipName: string;
+  scholarshipProvider: string;
+  scholarshipDeadline: string;
+  deadlineCountdown: number;
+  status: ApplicationStatus;
+  notes?: string;
+  deadlineRemindersSent?: string;
+  submittedAt?: string;
+  awardedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type DocumentUpload = {
+  id: number;
+  filename: string;
+  document_type: string;
+  verification_status: 'PENDING' | 'VERIFIED' | 'SUSPICIOUS' | 'REJECTED';
+  verification_notes: string;
+  uploaded_at: string;
+};
+
+export type DisclaimerStatus = {
+  disclaimer_accepted: boolean;
+  accepted_at: string | null;
+  message: string;
+};
+
+export type JobListing = {
+  id: number;
+  title: string;
+  company: string;
+  description: string;
+  location: string;
+  fieldOfStudy: string;
+  requiredEducationLevel: string;
+  minimumGpa?: number;
+  requirements: string;
+  salaryRange?: string;
+  applicationUrl?: string;
+  applicationDeadline: string;
+  createdAt: string;
+};
