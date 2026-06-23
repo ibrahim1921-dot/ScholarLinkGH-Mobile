@@ -7,7 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "scholarlink-gh",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "bundleIdentifier": "com.scholarlinkgh.app",
       "googleServicesFile": "./GoogleService-Info.plist",
@@ -22,7 +21,6 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
     "web": {
@@ -62,8 +60,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "eac0c180-3968-4245-8cdc-0d212aa5c001"
+        "projectId": "043fff33-c6c4-4a23-b2e8-ef570853ba8b"
       }
-    }
+    },
+    "owner": "ibrahimthedeveloper"
   }
 }

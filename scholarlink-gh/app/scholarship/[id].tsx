@@ -1,26 +1,14 @@
-import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams } from 'expo-router';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useLocalSearchParams, router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Linking, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, StyleSheet, Text, View, ScrollView, Pressable, Platform, SafeAreaView } from 'react-native';
 
-import { AppButton } from '../../components/AppButton';
-import { Badge } from '../../components/Badge';
 import { Screen } from '../../components/Screen';
-import { SectionHeader } from '../../components/SectionHeader';
 import { ErrorState, LoadingState } from '../../components/StateView';
 import { colors } from '../../constants/colors';
 import { scholarshipService } from '../../services/scholarshipService';
 import { trackerService } from '../../services/trackerService';
 import { EligibilityResult, Scholarship } from '../../types/api';
-
-function InfoPill({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: string }) {
-  return (
-    <View style={styles.pill}>
-      <Ionicons name={icon} size={15} color={colors.primary} />
-      <Text style={styles.pillText}>{text}</Text>
-    </View>
-  );
-}
 
 export default function ScholarshipDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -63,77 +51,400 @@ export default function ScholarshipDetailScreen() {
     }
   };
 
-  if (loading) return <Screen><LoadingState /></Screen>;
-  if (error || !scholarship) return <Screen><ErrorState message={error ?? 'Not found'} /></Screen>;
+  if (loading) return <Screen scroll={false}><LoadingState /></Screen>;
+  if (error || !scholarship) return <Screen scroll={false}><ErrorState message={error ?? 'Not found'} /></Screen>;
 
   return (
-    <Screen>
+    <SafeAreaView style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
-        <Badge label={scholarship.verified ? 'Verified' : scholarship.category} tone={scholarship.verified ? 'success' : 'info'} />
-        <Text style={styles.title}>{scholarship.name}</Text>
-        <Text style={styles.provider}>{scholarship.provider}</Text>
+        <Pressable onPress={() => router.back()} style={styles.iconBtn}>
+          <Ionicons name="arrow-back" size={24} color={colors.primary} />
+        </Pressable>
+        <Text style={styles.headerTitle}>Scholarship Detail</Text>
+        <Pressable style={styles.iconBtn}>
+          <Ionicons name="share-outline" size={24} color={colors.primary} />
+        </Pressable>
       </View>
 
-      <View style={styles.infoRow}>
-        <InfoPill icon="location-outline" text={scholarship.destinationCountry} />
-        <InfoPill icon="calendar-outline" text={`Deadline: ${scholarship.deadline}`} />
-        {scholarship.gpaRequirement > 0 && <InfoPill icon="school-outline" text={`GPA ≥ ${scholarship.gpaRequirement}`} />}
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Hero Section */}
+        <View style={styles.heroSection}>
+          <View style={styles.heroTopRow}>
+            <View style={styles.logoBox}>
+              <Ionicons name="school" size={32} color={colors.primary} />
+            </View>
+            {scholarship.daysUntilDeadline != null && (
+              <View style={styles.deadlineBadge}>
+                <Ionicons name="time" size={14} color="#ffffff" style={{ marginRight: 4 }} />
+                <Text style={styles.deadlineBadgeText}>
+                  {scholarship.daysUntilDeadline} days left
+                </Text>
+              </View>
+            )}
+          </View>
+          <Text style={styles.heroTitle}>{scholarship.name}</Text>
+          <Text style={styles.heroSubtitle}>{scholarship.provider} {scholarship.destinationCountry ? `• ${scholarship.destinationCountry}` : ''}</Text>
+        </View>
+
+        {/* Eligibility Checklist */}
+        {(eligibility || scholarship.gpaRequirement > 0) && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Eligibility Checklist</Text>
+            <View style={styles.checklistCard}>
+              {scholarship.gpaRequirement > 0 && (
+                <View style={styles.checklistItem}>
+                  <View style={styles.checklistLeft}>
+                    <View style={styles.checkIconBox}>
+                      <Ionicons name="checkmark-circle" size={20} color="#1b6d24" />
+                    </View>
+                    <Text style={styles.checklistText}>GPA &ge; {scholarship.gpaRequirement}</Text>
+                  </View>
+                  <View style={styles.statusBadgeMet}>
+                    <Text style={styles.statusBadgeTextMet}>Requirement</Text>
+                  </View>
+                </View>
+              )}
+
+              {eligibility?.criteria_met?.map((criterion, index) => (
+                <View key={`met-${index}`} style={styles.checklistItem}>
+                  <View style={styles.checklistLeft}>
+                    <View style={styles.checkIconBox}>
+                      <Ionicons name="checkmark-circle" size={20} color="#1b6d24" />
+                    </View>
+                    <Text style={styles.checklistText}>{criterion}</Text>
+                  </View>
+                  <View style={styles.statusBadgeMet}>
+                    <Text style={styles.statusBadgeTextMet}>Met</Text>
+                  </View>
+                </View>
+              ))}
+
+              {eligibility?.criteria_missing?.map((criterion, index) => (
+                <View key={`missing-${index}`} style={styles.checklistItem}>
+                  <View style={styles.checklistLeft}>
+                    <View style={styles.reviewIconBox}>
+                      <Ionicons name="close-circle" size={20} color="#ba1a1a" />
+                    </View>
+                    <Text style={styles.checklistText}>{criterion}</Text>
+                  </View>
+                  <View style={styles.statusBadgeReview}>
+                    <Text style={styles.statusBadgeTextReview}>Missing</Text>
+                  </View>
+                </View>
+              ))}
+              
+              {eligibility?.actions_required?.map((action, index) => (
+                <View key={`action-${index}`} style={styles.checklistItem}>
+                  <View style={styles.checklistLeft}>
+                    <View style={styles.reviewIconBox}>
+                      <Ionicons name="information-circle" size={20} color="#723610" />
+                    </View>
+                    <Text style={styles.checklistText}>{action}</Text>
+                  </View>
+                  <View style={styles.statusBadgeReview}>
+                    <Text style={styles.statusBadgeTextReview}>Action Req.</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Benefits & Funding */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Benefits & Funding</Text>
+          <View style={styles.genericCard}>
+            <View style={styles.genericCardHeader}>
+              <Ionicons name="cash-outline" size={24} color={colors.primary} />
+              <Text style={styles.genericCardTitle}>Funding Coverage</Text>
+            </View>
+            <Text style={styles.genericCardBody}>{scholarship.fundingCoverage || "Not specified."}</Text>
+          </View>
+        </View>
+
+        {/* Requirements Detail */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Requirements & Criteria</Text>
+          <View style={styles.detailBox}>
+            <Text style={styles.detailText}>{scholarship.requirements}</Text>
+            
+            <View style={styles.divider} />
+            <Text style={styles.detailSubTitle}>Selection Criteria</Text>
+            <Text style={styles.detailText}>{scholarship.selectionCriteria}</Text>
+
+            {scholarship.additionalNotes ? (
+              <>
+                <View style={styles.divider} />
+                <Text style={styles.detailSubTitle}>Additional Notes</Text>
+                <Text style={styles.detailText}>{scholarship.additionalNotes}</Text>
+              </>
+            ) : null}
+          </View>
+        </View>
+      </ScrollView>
+
+      {/* Sticky Bottom Actions */}
+      <View style={styles.bottomActions}>
+        <Pressable style={styles.actionBtnSecondary}>
+          <Ionicons name="bookmark-outline" size={24} color={colors.primary} />
+        </Pressable>
+        <Pressable style={styles.actionBtnSecondary} onPress={handleTrack} disabled={tracking}>
+          <Ionicons name={tracking ? "hourglass-outline" : "stats-chart-outline"} size={24} color={colors.primary} />
+        </Pressable>
+        <Pressable style={styles.actionBtnPrimary} onPress={() => Linking.openURL(scholarship.officialLink)}>
+          <Text style={styles.actionBtnPrimaryText}>Apply Now</Text>
+          <Ionicons name="open-outline" size={20} color="#ffffff" />
+        </Pressable>
       </View>
-
-      <SectionHeader title="Funding" />
-      <Text style={styles.body}>{scholarship.fundingCoverage}</Text>
-
-      <SectionHeader title="Eligible Fields" />
-      <Text style={styles.body}>{scholarship.eligibleFields}</Text>
-
-      <SectionHeader title="Requirements" />
-      <Text style={styles.body}>{scholarship.requirements}</Text>
-
-      <SectionHeader title="Selection Criteria" />
-      <Text style={styles.body}>{scholarship.selectionCriteria}</Text>
-
-      {scholarship.additionalNotes ? (
-        <>
-          <SectionHeader title="Additional Notes" />
-          <Text style={styles.body}>{scholarship.additionalNotes}</Text>
-        </>
-      ) : null}
-
-      {eligibility && (
-        <>
-          <SectionHeader title="Your Eligibility" />
-          <Badge label={eligibility.meets ? 'You Qualify' : 'Partial Match'} tone={eligibility.meets ? 'success' : 'warning'} />
-          {eligibility.criteria_met?.map((c, i) => <Text key={i} style={styles.criterion}>✅ {c}</Text>)}
-          {eligibility.criteria_missing?.map((c, i) => <Text key={i} style={styles.criterion}>❌ {c}</Text>)}
-          {eligibility.actions_required?.map((c, i) => <Text key={i} style={styles.criterion}>📌 {c}</Text>)}
-        </>
-      )}
-
-      <View style={styles.actions}>
-        <AppButton title="Track Application" onPress={handleTrack} loading={tracking} variant="secondary" style={styles.actionBtn} />
-        <AppButton title="Apply Online" onPress={() => Linking.openURL(scholarship.officialLink)} style={styles.actionBtn} />
-      </View>
-    </Screen>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { gap: 6, marginBottom: 10 },
-  title: { color: colors.ink, fontSize: 22, fontWeight: '900', lineHeight: 28 },
-  provider: { color: colors.muted, fontSize: 14, fontWeight: '600' },
-  infoRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  pill: {
-    alignItems: 'center',
-    backgroundColor: colors.surfaceMuted,
-    borderRadius: 999,
-    flexDirection: 'row',
-    gap: 5,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
   },
-  pillText: { color: colors.ink, fontSize: 13, fontWeight: '600' },
-  body: { color: colors.ink, fontSize: 14, lineHeight: 22 },
-  criterion: { color: colors.ink, fontSize: 14, lineHeight: 22 },
-  actions: { flexDirection: 'row', gap: 10, marginTop: 10 },
-  actionBtn: { flex: 1 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 10 : 20,
+    paddingBottom: 10,
+    backgroundColor: colors.surface,
+    zIndex: 10,
+  },
+  headerTitle: {
+    fontFamily: 'PlusJakartaSans_700Bold',
+    fontSize: 20,
+    color: colors.primary,
+  },
+  iconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(226, 226, 231, 0.5)',
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 100, // Room for bottom actions
+  },
+  heroSection: {
+    backgroundColor: '#003366', // primary-container
+    borderRadius: 16,
+    padding: 24,
+    marginBottom: 24,
+  },
+  heroTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  logoBox: {
+    backgroundColor: '#ffffff',
+    width: 64,
+    height: 64,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  deadlineBadge: {
+    backgroundColor: '#ba1a1a', // error
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  deadlineBadgeText: {
+    fontFamily: 'BeVietnamPro_600SemiBold',
+    fontSize: 12,
+    color: '#ffffff',
+  },
+  heroTitle: {
+    fontFamily: 'PlusJakartaSans_800ExtraBold',
+    fontSize: 28,
+    color: '#ffffff',
+    lineHeight: 36,
+    marginBottom: 8,
+  },
+  heroSubtitle: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: 16,
+    color: '#d5e3ff', // primary-fixed-dim
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontFamily: 'PlusJakartaSans_700Bold',
+    fontSize: 20,
+    color: colors.primary,
+    marginBottom: 16,
+  },
+  checklistCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: 'rgba(195, 198, 209, 0.3)',
+    overflow: 'hidden',
+  },
+  checklistItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(195, 198, 209, 0.3)',
+  },
+  checklistLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+    paddingRight: 12,
+  },
+  checkIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#a0f399', // secondary-container
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reviewIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#ffdad6', // error-container
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checklistText: {
+    fontFamily: 'BeVietnamPro_400Regular',
+    fontSize: 14,
+    color: colors.primary,
+  },
+  statusBadgeMet: {
+    backgroundColor: 'rgba(160, 243, 153, 0.3)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  statusBadgeTextMet: {
+    fontFamily: 'BeVietnamPro_600SemiBold',
+    fontSize: 12,
+    color: '#1b6d24',
+  },
+  statusBadgeReview: {
+    backgroundColor: '#f4f3f8', // surface-container-low
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  statusBadgeTextReview: {
+    fontFamily: 'BeVietnamPro_600SemiBold',
+    fontSize: 12,
+    color: '#43474f', // on-surface-variant
+  },
+  genericCard: {
+    backgroundColor: '#f4f3f8', // surface-container-low
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(195, 198, 209, 0.2)',
+  },
+  genericCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  genericCardTitle: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: 16,
+    color: colors.primary,
+  },
+  genericCardBody: {
+    fontFamily: 'BeVietnamPro_400Regular',
+    fontSize: 14,
+    color: colors.muted,
+    lineHeight: 20,
+  },
+  detailBox: {
+    backgroundColor: '#ffffff',
+    padding: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(195, 198, 209, 0.3)',
+  },
+  detailSubTitle: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: 16,
+    color: colors.primary,
+    marginBottom: 8,
+  },
+  detailText: {
+    fontFamily: 'BeVietnamPro_400Regular',
+    fontSize: 14,
+    color: colors.muted,
+    lineHeight: 24,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: 'rgba(195, 198, 209, 0.3)',
+    marginVertical: 16,
+  },
+  bottomActions: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    right: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 16,
+    borderRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  actionBtnSecondary: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff',
+  },
+  actionBtnPrimary: {
+    flex: 1,
+    height: 48,
+    backgroundColor: '#003366', // primary-container
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  actionBtnPrimaryText: {
+    fontFamily: 'PlusJakartaSans_700Bold',
+    fontSize: 16,
+    color: '#ffffff',
+  },
 });

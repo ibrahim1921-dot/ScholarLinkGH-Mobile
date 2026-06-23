@@ -1,19 +1,61 @@
-import { StyleSheet, Text, TextInput, TextInputProps, View } from 'react-native';
+import {
+  StyleSheet,
+  Text,
+  TextInput,
+  TextInputProps,
+  View,
+} from "react-native";
+import { useCallback, useRef, useState } from "react";
 
-import { colors } from '../constants/colors';
+import { colors } from "../constants/colors";
 
 type Props = TextInputProps & {
   label: string;
   error?: string;
 };
 
-export function AppTextInput({ label, error, style, ...props }: Props) {
+export function AppTextInput({
+  label,
+  error,
+  style,
+  onFocus,
+  onBlur,
+  ...props
+}: Props) {
+  const [isFocused, setIsFocused] = useState(false);
+  const viewRef = useRef<View>(null);
+
+  const scrollToInput = useCallback(() => {
+    // Small delay allows keyboard animation to begin,
+    // then we measure and ensure the field is visible.
+    setTimeout(() => {
+      viewRef.current?.measureInWindow((_x, y, _w, h) => {
+        // Measurement can fail if component unmounted
+        if (y === undefined) return;
+      });
+    }, 100);
+  }, []);
+
   return (
-    <View style={styles.wrap}>
-      <Text style={styles.label}>{label}</Text>
+    <View style={styles.wrap} ref={viewRef}>
+      {label ? <Text style={styles.label}>{label}</Text> : null}
       <TextInput
         placeholderTextColor="#8B9894"
-        style={[styles.input, error && styles.inputError, style]}
+        style={[
+          styles.input,
+          isFocused && styles.inputFocused,
+          error && styles.inputError,
+          style,
+        ]}
+        onFocus={(e) => {
+          setIsFocused(true);
+          scrollToInput();
+          onFocus?.(e);
+        }}
+        onBlur={(e) => {
+          setIsFocused(false);
+          onBlur?.(e);
+        }}
         {...props}
       />
       {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -23,17 +65,44 @@ export function AppTextInput({ label, error, style, ...props }: Props) {
 
 const styles = StyleSheet.create({
   wrap: { gap: 7 },
-  label: { color: colors.ink, fontSize: 13, fontWeight: '700' },
+  label: {
+    color: colors.ink,
+    fontSize: 13,
+    fontFamily: "BeVietnamPro_600SemiBold",
+  },
   input: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: 8,
-    borderWidth: 1,
+    backgroundColor: "#F4F3F8", // surface-container-low
+    borderBottomColor: colors.border,
+    borderBottomWidth: 2,
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: "transparent",
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    borderBottomLeftRadius: 8,
+    borderBottomRightRadius: 8,
     color: colors.ink,
     fontSize: 15,
+    fontFamily: "BeVietnamPro_400Regular",
     minHeight: 48,
     paddingHorizontal: 14,
   },
-  inputError: { borderColor: colors.danger },
-  error: { color: colors.danger, fontSize: 12 },
+  inputFocused: {
+    borderColor: colors.primary,
+    borderWidth: 1,
+    borderBottomWidth: 2,
+    borderBottomColor: colors.primary,
+    backgroundColor: colors.surface,
+  },
+  inputError: {
+    borderBottomColor: colors.danger,
+    borderColor: colors.danger,
+    borderWidth: 1,
+  },
+  error: {
+    color: colors.danger,
+    fontSize: 12,
+    fontFamily: "BeVietnamPro_400Regular",
+  },
 });

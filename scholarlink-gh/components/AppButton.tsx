@@ -1,16 +1,32 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text, ViewStyle } from 'react-native';
+import React from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  ViewStyle,
+  StyleProp,
+} from "react-native";
 
-import { colors } from '../constants/colors';
+import { colors } from "../constants/colors";
 
 type Props = {
   title: string;
   onPress: () => void;
   loading?: boolean;
-  variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
-  style?: ViewStyle;
+  variant?: "primary" | "secondary" | "ghost" | "danger";
+  style?: StyleProp<ViewStyle>;
+  icon?: React.ReactNode;
 };
 
-export function AppButton({ title, onPress, loading, variant = 'primary', style }: Props) {
+export function AppButton({
+  title,
+  onPress,
+  loading,
+  variant = "primary",
+  style,
+  icon,
+}: Props) {
   const textStyles = {
     primary: styles.primaryText,
     secondary: styles.secondaryText,
@@ -30,28 +46,41 @@ export function AppButton({ title, onPress, loading, variant = 'primary', style 
         style,
       ]}
     >
-      {loading ? <ActivityIndicator color={variant === 'primary' ? '#fff' : colors.primary} /> : <Text style={[styles.text, textStyles[variant]]}>{title}</Text>}
+      {loading ? (
+        <ActivityIndicator
+          color={variant === "primary" ? "#fff" : colors.primary}
+        />
+      ) : (
+        <>
+          {icon}
+          <Text style={[styles.text, textStyles[variant], icon ? { marginLeft: 8 } : undefined]}>{title}</Text>
+        </>
+      )}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   base: {
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: 8,
     minHeight: 48,
-    justifyContent: 'center',
+    justifyContent: "center",
     paddingHorizontal: 18,
   },
   primary: { backgroundColor: colors.primary },
-  secondary: { backgroundColor: colors.surfaceMuted },
-  ghost: { backgroundColor: 'transparent' },
+  secondary: {
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  ghost: { backgroundColor: "transparent" },
   danger: { backgroundColor: colors.danger },
-  text: { fontSize: 15, fontWeight: '700' },
-  primaryText: { color: '#fff' },
-  secondaryText: { color: colors.primaryDark },
+  text: { fontSize: 15, fontFamily: "PlusJakartaSans_600SemiBold" },
+  primaryText: { color: "#fff" },
+  secondaryText: { color: colors.primary },
   ghostText: { color: colors.primary },
-  dangerText: { color: '#fff' },
+  dangerText: { color: "#fff" },
   pressed: { opacity: 0.82 },
   disabled: { opacity: 0.6 },
 });
