@@ -12,10 +12,10 @@ export function useNotifications() {
 
     async function initializeNotifications() {
       if (user) {
-        const fcmToken = await notificationService.registerForPushNotifications();
-        if (fcmToken) {
-          setToken(fcmToken);
-          await notificationService.saveFcmTokenToBackend(fcmToken);
+        const pushToken = await notificationService.registerForPushNotifications();
+        if (pushToken) {
+          setToken(pushToken);
+          await notificationService.savePushTokenToBackend(pushToken);
         }
 
         cleanup = notificationService.setupNotificationListeners();

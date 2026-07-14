@@ -1,4 +1,4 @@
-import { Link, router } from "expo-router";
+import { Link, router, Stack } from "expo-router";
 import { useState, useRef } from "react";
 import {
   StyleSheet,
@@ -41,6 +41,7 @@ const slides = [
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const [activeIndex, setActiveIndex] = useState(0);
+  const scrollViewRef = useRef<ScrollView>(null);
 
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const slideSize = event.nativeEvent.layoutMeasurement.width;
@@ -48,8 +49,24 @@ export default function OnboardingScreen() {
     setActiveIndex(Math.round(index));
   };
 
+  const handleSkip = () => {
+    router.push("/(auth)/register");
+  };
+
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+
+      {/* Skip Button */}
+      {activeIndex < 2 && (
+        <Pressable
+          style={[styles.skipButton, { top: insets.top + 24 }]}
+          onPress={handleSkip}
+        >
+          <Text style={styles.skipButtonText}>Skip</Text>
+        </Pressable>
+      )}
+
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.logoRow}>
@@ -65,23 +82,37 @@ export default function OnboardingScreen() {
       {/* Carousel */}
       <View style={styles.carouselContainer}>
         <ScrollView
+          ref={scrollViewRef}
           horizontal
           pagingEnabled
           showsHorizontalScrollIndicator={false}
           onScroll={handleScroll}
           scrollEventThrottle={16}
+          contentContainerStyle={styles.scrollContent}
         >
-          {slides.map((slide) => (
-            <View key={slide.id} style={styles.slide}>
-              <View style={styles.imageContainer}>
-                <Image source={slide.image} style={styles.image} resizeMode="cover" />
+          {slides.map((slide) => {
+            const isFirst = slide.id === "1";
+            return (
+              <View key={slide.id} style={styles.slide}>
+                <View
+                  style={[
+                    styles.imageContainer,
+                    isFirst && styles.firstImageContainer,
+                  ]}
+                >
+                  <Image
+                    source={slide.image}
+                    style={[styles.image, isFirst && styles.firstImage]}
+                    resizeMode="cover"
+                  />
+                </View>
+                <View style={styles.textContainer}>
+                  <Text style={styles.title}>{slide.title}</Text>
+                  <Text style={styles.description}>{slide.description}</Text>
+                </View>
               </View>
-              <View style={styles.textContainer}>
-                <Text style={styles.title}>{slide.title}</Text>
-                <Text style={styles.description}>{slide.description}</Text>
-              </View>
-            </View>
-          ))}
+            );
+          })}
         </ScrollView>
       </View>
 
@@ -127,8 +158,8 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: "center",
-    marginTop: 24,
-    marginBottom: 24,
+    marginTop: 16,
+    marginBottom: 16,
     paddingHorizontal: 20,
   },
   logoRow: {
@@ -157,27 +188,44 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
   },
+  scrollContent: {
+    flexGrow: 1,
+  },
   slide: {
     width: width,
     alignItems: "center",
     paddingHorizontal: 20,
+    flex: 1,
   },
   imageContainer: {
     width: "100%",
     maxWidth: 320,
-    aspectRatio: 1,
+    height: 340,
     borderRadius: 24,
     overflow: "hidden",
-    marginBottom: 32,
+    marginBottom: 20,
     backgroundColor: colors.surfaceMuted,
+  },
+  firstImageContainer: {
+    width: width,
+    maxWidth: width,
+    height: 380,
+    borderRadius: 0,
   },
   image: {
     width: "100%",
-    height: "100%",
+    height: "140%",
+    marginTop: -25,
+  },
+  firstImage: {
+    width: "100%",
+    height: "155%",
+    marginTop: -45,
   },
   textContainer: {
     alignItems: "center",
     paddingHorizontal: 16,
+    marginTop: 10,
   },
   title: {
     fontFamily: "PlusJakartaSans_700Bold",
@@ -198,7 +246,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     gap: 8,
-    marginBottom: 32,
+    marginBottom: 20,
   },
   dot: {
     width: 8,
@@ -209,6 +257,17 @@ const styles = StyleSheet.create({
   dotActive: {
     width: 24,
     backgroundColor: colors.primary,
+  },
+  skipButton: {
+    position: "absolute",
+    right: 20,
+    zIndex: 10,
+    padding: 8,
+  },
+  skipButtonText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 16,
+    color: colors.muted,
   },
   footer: {
     paddingHorizontal: 20,

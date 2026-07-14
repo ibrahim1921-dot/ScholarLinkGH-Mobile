@@ -1,6 +1,6 @@
 import { Link, router } from "expo-router";
 import { useState } from "react";
-import { Alert, StyleSheet, Text, View, Image } from "react-native";
+import { Alert, StyleSheet, Text, View, Image, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { AppButton } from "../../components/AppButton";
@@ -32,62 +32,73 @@ export default function LoginScreen() {
 
   return (
     <Screen>
-      <View style={styles.headerContainer}>
-        <View style={styles.logoContainer}>
-          <Image 
-            source={require("../../assets/images/scholarlink_logo.png")} 
-            style={styles.logo} 
-            resizeMode="contain" 
+      <View style={styles.cardContainer}>
+        <View style={styles.headerContainer}>
+          <View style={styles.logoContainer}>
+            <Image 
+              source={require("../../assets/images/scholarlink_logo.png")} 
+              style={styles.logo} 
+              resizeMode="contain" 
+            />
+          </View>
+          <SectionHeader
+            title="Welcome Back"
+            subtitle="Continue your journey to academic and professional excellence."
           />
         </View>
-        <SectionHeader
-          title="Welcome Back"
-          subtitle="Continue your journey to academic and professional excellence."
-        />
-      </View>
-      <View style={styles.formContainer}>
-        <AppTextInput
-          label="Email Address"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          placeholder=" "
-        />
-        <AppTextInput
-          label="Password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          placeholder=" "
-        />
-        <View style={styles.forgotPasswordContainer}>
-          <Link href="/(auth)/register" style={styles.forgotPasswordLink}>
-            Forgot Password?
-          </Link>
+        <View style={styles.formContainer}>
+          <AppTextInput
+            label="Email Address"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            placeholder=" "
+          />
+          <AppTextInput
+            label="Password"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            placeholder=" "
+          />
+          <View style={styles.forgotPasswordContainer}>
+            <Link href="/(auth)/register" style={styles.forgotPasswordLink}>
+              Forgot Password?
+            </Link>
+          </View>
         </View>
-      </View>
-      <View style={styles.actionContainer}>
-        <AppButton title="Login" onPress={submit} loading={loading} />
-        
-        <View style={styles.dividerContainer}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>or</Text>
-          <View style={styles.dividerLine} />
-        </View>
+        <View style={styles.actionContainer}>
+          <AppButton 
+            title="Login" 
+            onPress={submit} 
+            loading={loading} 
+            style={styles.loginButton}
+          />
+          
+          <View style={styles.dividerContainer}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or</Text>
+            <View style={styles.dividerLine} />
+          </View>
 
-        <AppButton 
-          title="Sign in with Google" 
-          onPress={() => {}} 
-          variant="secondary"
-          icon={<Ionicons name="logo-google" size={18} color={colors.primary} />}
-        />
+          <Pressable 
+            style={({ pressed }) => [
+              styles.googleButton,
+              pressed && { opacity: 0.82 }
+            ]}
+            onPress={() => {}}
+          >
+            <Ionicons name="logo-google" size={20} color="#ea4335" />
+            <Text style={styles.googleButtonText}>Sign in with Google</Text>
+          </Pressable>
 
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>New to ScholarLink? </Text>
-          <Link href="/(auth)/register" style={styles.footerLink}>
-            Register
-          </Link>
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>New to ScholarLink? </Text>
+            <Link href="/(auth)/register" style={styles.footerLink}>
+              Register
+            </Link>
+          </View>
         </View>
       </View>
     </Screen>
@@ -95,8 +106,22 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
+  cardContainer: {
+    width: "100%",
+    maxWidth: 448,
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    padding: 24,
+    borderWidth: 2,
+    borderColor: "rgba(195, 198, 209, 0.1)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
+    alignSelf: "center",
+  },
   headerContainer: { 
-    marginTop: 40, 
     marginBottom: 32,
     alignItems: "center",
   },
@@ -118,44 +143,65 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
   },
   forgotPasswordLink: {
-    color: colors.primary,
+    color: "#003366",
     fontSize: 12,
     fontFamily: "BeVietnamPro_600SemiBold",
   },
-  actionContainer: { marginTop: 32, gap: 16 },
+  actionContainer: { marginTop: 16, gap: 16 },
+  loginButton: {
+    backgroundColor: "#003366",
+    borderRadius: 12,
+  },
   dividerContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginVertical: 8,
+    paddingVertical: 16,
   },
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: colors.border,
+    backgroundColor: "#c3c6d1",
   },
   dividerText: {
     paddingHorizontal: 12,
-    color: colors.muted,
+    color: "#43474f",
     fontSize: 12,
     fontFamily: "BeVietnamPro_600SemiBold",
+  },
+  googleButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#ffffff",
+    borderWidth: 2,
+    borderColor: "#c3c6d1",
+    borderRadius: 12,
+    minHeight: 48,
+    gap: 12, // gap-gutter
+  },
+  googleButtonText: {
+    color: "#1a1c1f", // text-on-surface
+    fontSize: 18, // font-title-md
+    fontFamily: "PlusJakartaSans_600SemiBold",
   },
   footer: { 
     alignItems: "center", 
     flexDirection: "row", 
     justifyContent: "center",
-    marginTop: 16,
+    marginTop: 24,
     paddingTop: 24,
     borderTopWidth: 1,
     borderTopColor: "rgba(195, 198, 209, 0.3)",
   },
   footerText: {
-    color: colors.muted,
+    color: "#43474f",
     fontSize: 14,
     fontFamily: "BeVietnamPro_400Regular",
   },
   footerLink: {
-    color: colors.primary,
-    fontSize: 14,
+    color: "#001e40",
+    fontSize: 18,
     fontFamily: "PlusJakartaSans_600SemiBold",
+    marginLeft: 4,
   },
 });

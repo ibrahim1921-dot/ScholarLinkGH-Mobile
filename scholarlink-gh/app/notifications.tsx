@@ -1,4 +1,5 @@
 import { router } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import {
   StyleSheet,
   Text,
@@ -10,186 +11,285 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { colors } from "../constants/colors";
+import {
+  getNotifications,
+  subscribeToNotifications,
+  markNotificationRead,
+  markAllRead,
+  InAppNotification,
+} from "../services/notificationService";
 
-type NotificationType = 'alert' | 'success' | 'match' | 'info';
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
-interface Notification {
-  id: string;
-  type: NotificationType;
-  title: string;
-  time: string;
-  message: string;
-  action?: string;
-  chip?: { text: string; icon: keyof typeof Ionicons.glyphMap };
+type NotificationType = "alert" | "success" | "match" | "info";
+
+function classifyNotification(n: InAppNotification): NotificationType {
+  const type = (n.data?.type as string) ?? "";
+  if (type === "DEADLINE_ALERT") return "alert";
+  if (type === "NEW_MATCH") return "match";
+  if (type === "WEEKLY_DIGEST") return "info";
+  if (type.includes("SUCCESS") || type.includes("VERIFIED")) return "success";
+  // Default based on keywords in title
+  if (n.title.toLowerCase().includes("deadline")) return "alert";
+  if (n.title.toLowerCase().includes("match")) return "match";
+  return "info";
 }
 
-const NOTIFICATIONS_TODAY: Notification[] = [
-  {
-    id: "1",
-    type: "alert",
-    title: "Mastercard Foundation Scholars deadline is in 2 days!",
-    time: "2h ago",
-    message: "Complete your personal statement now.",
-    chip: { text: "Closes in 2 days", icon: "timer-outline" },
-  },
-  {
-    id: "2",
-    type: "match",
-    title: "New Scholarship Match: KNUST Merit Award",
-    time: "5h ago",
-    message: "Based on your 3.8 GPA, you are a strong candidate.",
-  },
-];
+function formatTimestamp(date: Date): string {
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return "Just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDays = Math.floor(diffHr / 24);
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString();
+}
 
-const NOTIFICATIONS_YESTERDAY: Notification[] = [
-  {
-    id: "3",
-    type: "success",
-    title: "Document Verified: Academic Transcript",
-    time: "1d ago",
-    message: "Your eligibility for 12 more scholarships is now confirmed.",
-  },
-];
+function groupNotifications(notifications: InAppNotification[]) {
+  const today: InAppNotification[] = [];
+  const yesterday: InAppNotification[] = [];
+  const earlier: InAppNotification[] = [];
 
-const NOTIFICATIONS_EARLIER: Notification[] = [
-  {
-    id: "4",
-    type: "info",
-    title: "AI Coach: Review your CV",
-    time: "2d ago",
-    message: "I found a few ways to improve your leadership section.",
-    action: "View Suggestions",
-  },
-];
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfYesterday = new Date(startOfToday.getTime() - 86400000);
+
+  for (const n of notifications) {
+    if (n.receivedAt >= startOfToday) {
+      today.push(n);
+    } else if (n.receivedAt >= startOfYesterday) {
+      yesterday.push(n);
+    } else {
+      earlier.push(n);
+    }
+  }
+
+  return { today, yesterday, earlier };
+}
+
+// ── Style helper ─────────────────────────────────────────────────────────────
 
 const getNotificationStyle = (type: NotificationType) => {
   switch (type) {
-    case 'alert':
+    case "alert":
       return {
         borderColor: colors.danger,
-        iconBg: '#ffdad6', // error-container
+        iconBg: "#ffdad6",
         iconColor: colors.danger,
-        iconName: 'alarm-outline' as keyof typeof Ionicons.glyphMap,
+        iconName: "alarm-outline" as keyof typeof Ionicons.glyphMap,
       };
-    case 'success':
+    case "success":
       return {
         borderColor: colors.success,
-        iconBg: '#a0f399', // secondary-container
-        iconColor: '#005312', // on-secondary-container
-        iconName: 'checkmark-circle-outline' as keyof typeof Ionicons.glyphMap,
+        iconBg: "#a0f399",
+        iconColor: "#005312",
+        iconName: "checkmark-circle-outline" as keyof typeof Ionicons.glyphMap,
       };
-    case 'match':
+    case "match":
       return {
         borderColor: colors.info,
-        iconBg: '#d5e3ff', // primary-fixed
-        iconColor: '#1f477b', // on-primary-fixed-variant
-        iconName: 'sparkles-outline' as keyof typeof Ionicons.glyphMap,
+        iconBg: "#d5e3ff",
+        iconColor: "#1f477b",
+        iconName: "sparkles-outline" as keyof typeof Ionicons.glyphMap,
       };
-    case 'info':
+    case "info":
     default:
       return {
-        borderColor: '#ffb690', // tertiary-fixed-dim
-        iconBg: '#ffdbca', // tertiary-fixed
-        iconColor: '#723610', // on-tertiary-fixed-variant
-        iconName: 'hardware-chip-outline' as keyof typeof Ionicons.glyphMap,
+        borderColor: "#ffb690",
+        iconBg: "#ffdbca",
+        iconColor: "#723610",
+        iconName: "hardware-chip-outline" as keyof typeof Ionicons.glyphMap,
       };
   }
 };
 
-const NotificationCard = ({ item }: { item: Notification }) => {
-  const style = getNotificationStyle(item.type);
+// ── Card component ───────────────────────────────────────────────────────────
+
+const NotificationCard = ({
+  item,
+  onPress,
+}: {
+  item: InAppNotification;
+  onPress: () => void;
+}) => {
+  const type = classifyNotification(item);
+  const style = getNotificationStyle(type);
 
   return (
-    <Pressable style={({ pressed }) => [
-      styles.card,
-      { borderLeftColor: style.borderColor },
-      pressed && styles.cardPressed
-    ]}>
+    <Pressable
+      style={({ pressed }) => [
+        styles.card,
+        { borderLeftColor: style.borderColor },
+        !item.read && styles.cardUnread,
+        pressed && styles.cardPressed,
+      ]}
+      onPress={onPress}
+    >
       <View style={[styles.iconContainer, { backgroundColor: style.iconBg }]}>
         <Ionicons name={style.iconName} size={24} color={style.iconColor} />
       </View>
       <View style={styles.cardContent}>
         <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>{item.title}</Text>
-          <Text style={styles.cardTime}>{item.time}</Text>
+          <Text style={[styles.cardTitle, !item.read && styles.cardTitleUnread]}>
+            {item.title}
+          </Text>
+          <Text style={styles.cardTime}>{formatTimestamp(item.receivedAt)}</Text>
         </View>
-        <Text style={styles.cardMessage}>{item.message}</Text>
-        
-        {item.chip && (
-          <View style={styles.chip}>
-            <Ionicons name={item.chip.icon} size={14} color="#ffffff" />
-            <Text style={styles.chipText}>{item.chip.text}</Text>
-          </View>
-        )}
-        
-        {item.action && (
-          <Pressable style={styles.actionButton}>
-            <Text style={styles.actionText}>{item.action}</Text>
-            <Ionicons name="chevron-forward" size={16} color={colors.primary} />
-          </Pressable>
+        <Text style={styles.cardMessage}>{item.body}</Text>
+        {!item.read && (
+          <View style={styles.unreadDot} />
         )}
       </View>
     </Pressable>
   );
 };
 
+// ── Screen ───────────────────────────────────────────────────────────────────
+
 export default function NotificationsScreen() {
   const insets = useSafeAreaInsets();
+  const [notifications, setNotifications] = useState<InAppNotification[]>(
+    getNotifications
+  );
+
+  // Re-render when the in-memory store changes
+  useEffect(() => {
+    const unsubscribe = subscribeToNotifications(() => {
+      setNotifications([...getNotifications()]);
+    });
+    return unsubscribe;
+  }, []);
+
+  const { today, yesterday, earlier } = groupNotifications(notifications);
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  const handlePress = useCallback((item: InAppNotification) => {
+    markNotificationRead(item.id);
+    // Navigate to scholarship if data contains an id
+    const scholarshipId = item.data?.scholarshipId ?? item.data?.entity_id;
+    if (scholarshipId) {
+      router.push(`/scholarship/${scholarshipId}`);
+    }
+  }, []);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+    <View
+      style={[
+        styles.container,
+        { paddingTop: insets.top, paddingBottom: insets.bottom },
+      ]}
+    >
       {/* Header */}
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={colors.primary} />
         </Pressable>
         <Text style={styles.headerTitle}>Notifications</Text>
+        {unreadCount > 0 && (
+          <Pressable onPress={markAllRead} style={styles.markAllBtn}>
+            <Text style={styles.markAllText}>Mark all read</Text>
+          </Pressable>
+        )}
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Today */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Today</Text>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>New</Text>
-            </View>
+      {notifications.length === 0 ? (
+        /* Empty state */
+        <View style={styles.emptyContainer}>
+          <View style={styles.emptyIconBg}>
+            <Ionicons
+              name="notifications-off-outline"
+              size={48}
+              color={colors.muted}
+            />
           </View>
-          <View style={styles.list}>
-            {NOTIFICATIONS_TODAY.map(item => <NotificationCard key={item.id} item={item} />)}
-          </View>
-        </View>
-
-        {/* Yesterday */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Yesterday</Text>
-          <View style={styles.list}>
-            {NOTIFICATIONS_YESTERDAY.map(item => <NotificationCard key={item.id} item={item} />)}
-          </View>
-        </View>
-
-        {/* Earlier This Week */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Earlier This Week</Text>
-          <View style={styles.list}>
-            {NOTIFICATIONS_EARLIER.map(item => <NotificationCard key={item.id} item={item} />)}
-          </View>
-        </View>
-
-        {/* Motivation Banner */}
-        <View style={styles.banner}>
-          <Text style={styles.bannerTitle}>You're on track!</Text>
-          <Text style={styles.bannerText}>
-            Complete 2 more applications this week to increase your chances by 40%.
+          <Text style={styles.emptyTitle}>No notifications yet</Text>
+          <Text style={styles.emptyDesc}>
+            You'll see scholarship deadline alerts, match notifications, and
+            weekly digests here.
           </Text>
-          <Pressable style={styles.bannerButton} onPress={() => router.push("/(tabs)/applications")}>
-            <Text style={styles.bannerButtonText}>Go to Applications</Text>
-          </Pressable>
         </View>
-      </ScrollView>
+      ) : (
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          {/* Today */}
+          {today.length > 0 && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Today</Text>
+                {today.some((n) => !n.read) && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>New</Text>
+                  </View>
+                )}
+              </View>
+              <View style={styles.list}>
+                {today.map((item) => (
+                  <NotificationCard
+                    key={item.id}
+                    item={item}
+                    onPress={() => handlePress(item)}
+                  />
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Yesterday */}
+          {yesterday.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Yesterday</Text>
+              <View style={styles.list}>
+                {yesterday.map((item) => (
+                  <NotificationCard
+                    key={item.id}
+                    item={item}
+                    onPress={() => handlePress(item)}
+                  />
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Earlier */}
+          {earlier.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Earlier</Text>
+              <View style={styles.list}>
+                {earlier.map((item) => (
+                  <NotificationCard
+                    key={item.id}
+                    item={item}
+                    onPress={() => handlePress(item)}
+                  />
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Motivation Banner */}
+          <View style={styles.banner}>
+            <Text style={styles.bannerTitle}>You're on track!</Text>
+            <Text style={styles.bannerText}>
+              Complete 2 more applications this week to increase your chances by
+              40%.
+            </Text>
+            <Pressable
+              style={styles.bannerButton}
+              onPress={() => router.push("/(tabs)/applications")}
+            >
+              <Text style={styles.bannerButtonText}>Go to Applications</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      )}
     </View>
   );
 }
+
+// ── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: {
@@ -208,8 +308,17 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   headerTitle: {
+    flex: 1,
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: 20,
+    color: colors.primary,
+  },
+  markAllBtn: {
+    padding: 8,
+  },
+  markAllText: {
+    fontFamily: "BeVietnamPro_600SemiBold",
+    fontSize: 12,
     color: colors.primary,
   },
   scrollContent: {
@@ -259,6 +368,9 @@ const styles = StyleSheet.create({
     elevation: 2,
     gap: 12,
   },
+  cardUnread: {
+    backgroundColor: "#f0f4ff",
+  },
   cardPressed: {
     opacity: 0.8,
     transform: [{ scale: 0.98 }],
@@ -272,6 +384,7 @@ const styles = StyleSheet.create({
   },
   cardContent: {
     flex: 1,
+    position: "relative",
   },
   cardHeader: {
     flexDirection: "row",
@@ -286,6 +399,9 @@ const styles = StyleSheet.create({
     color: colors.ink,
     marginRight: 8,
   },
+  cardTitleUnread: {
+    fontFamily: "PlusJakartaSans_700Bold",
+  },
   cardTime: {
     fontFamily: "BeVietnamPro_600SemiBold",
     fontSize: 10,
@@ -297,33 +413,46 @@ const styles = StyleSheet.create({
     color: colors.muted,
     marginBottom: 8,
   },
-  chip: {
-    alignSelf: "flex-start",
-    flexDirection: "row",
+  unreadDot: {
+    position: "absolute",
+    top: 4,
+    right: 0,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.primary,
+  },
+  // ── Empty state ──
+  emptyContainer: {
+    flex: 1,
     alignItems: "center",
-    backgroundColor: colors.danger,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    gap: 4,
+    justifyContent: "center",
+    paddingHorizontal: 40,
   },
-  chipText: {
-    fontFamily: "BeVietnamPro_600SemiBold",
-    fontSize: 12,
-    color: "#ffffff",
-  },
-  actionButton: {
-    alignSelf: "flex-start",
-    flexDirection: "row",
+  emptyIconBg: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: colors.surfaceMuted,
     alignItems: "center",
-    marginTop: 4,
-    gap: 4,
+    justifyContent: "center",
+    marginBottom: 20,
   },
-  actionText: {
-    fontFamily: "BeVietnamPro_600SemiBold",
-    fontSize: 12,
-    color: colors.primary,
+  emptyTitle: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    fontSize: 20,
+    color: colors.ink,
+    marginBottom: 8,
+    textAlign: "center",
   },
+  emptyDesc: {
+    fontFamily: "BeVietnamPro_400Regular",
+    fontSize: 14,
+    color: colors.muted,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  // ── Banner ──
   banner: {
     backgroundColor: colors.primary,
     borderRadius: 16,

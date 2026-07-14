@@ -4,7 +4,7 @@ import { tokenStore } from './tokenStore';
 import { AuthResponse } from '../types/api';
 
 const extra = Constants.expoConfig?.extra as { apiUrl?: string } | undefined;
-const API_BASE_URL = extra?.apiUrl ?? 'http://10.191.65.133';
+const API_BASE_URL = extra?.apiUrl ?? 'http://10.31.55.133:8080';
 
 const refreshClient = axios.create({
   baseURL: API_BASE_URL,
@@ -20,7 +20,7 @@ export async function refreshAccessToken(): Promise<string> {
     await tokenStore.clearTokens();
     throw new Error('No refresh token available');
   }
-  
+
   try {
     const response = await refreshClient.post<AuthResponse>('/api/v1/auth/refresh', { refreshToken });
     await tokenStore.setTokens(response.data.accessToken, response.data.refreshToken);

@@ -22,9 +22,9 @@ export const profileService = {
     }
   },
 
-  async registerFcmToken(token: string): Promise<ApiResponse> {
+  async registerPushToken(token: string): Promise<ApiResponse> {
     try {
-      const response = await apiClient.post<ApiResponse>('/api/v1/profile/fcm-token', { token });
+      const response = await apiClient.post<ApiResponse>('/api/v1/profile/push-token', { token });
       return response.data;
     } catch (error: any) {
       const message = error.response?.data?.message || error.message || 'Something went wrong';

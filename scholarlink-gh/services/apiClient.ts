@@ -7,7 +7,7 @@ import { refreshAccessToken } from './tokenRefresh';
 
 const extra = Constants.expoConfig?.extra as { apiUrl?: string } | undefined;
 
-export const API_BASE_URL = extra?.apiUrl ?? 'http://10.191.65.133:8080';
+export const API_BASE_URL = extra?.apiUrl ?? 'http://10.31.55.133:8080';
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -34,7 +34,8 @@ apiClient.interceptors.response.use(
     if (
       error.response?.status === 401 &&
       !originalRequest._retry &&
-      originalRequest.url !== '/api/v1/auth/refresh'
+      originalRequest.url !== '/api/v1/auth/refresh' &&
+      originalRequest.url !== '/api/v1/auth/login'
     ) {
       originalRequest._retry = true;
       try {
