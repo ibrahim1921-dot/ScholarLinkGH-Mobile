@@ -12,6 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { colors } from "../constants/colors";
 import { useAuth } from "../hooks/useAuth";
+import { UserAvatar } from "../components/UserAvatar";
 
 const SETTINGS_ITEMS = [
   { id: 'personal', title: 'Personal Information', icon: 'person-outline' },
@@ -22,7 +23,7 @@ const SETTINGS_ITEMS = [
 
 export default function ProfileSettingsScreen() {
   const insets = useSafeAreaInsets();
-  const { signOut } = useAuth();
+  const { user, signOut } = useAuth();
 
   const handleLogout = async () => {
     await signOut();
@@ -48,19 +49,16 @@ export default function ProfileSettingsScreen() {
         {/* Profile Header */}
         <View style={styles.profileHeader}>
           <View style={styles.avatarContainer}>
-            <Image
-              source={{ uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuCoULrjtdditJCXWfvA0RUxetRtb2XI4sudVU9kif0ZZEJ2cILwW5V-CtXW97ITjwJBCLOdXAsGtl8cdcBOTn22yk6u_uXlTa4q6r9LkqwSUtlEWYDQocmFy4w9TCQC3OhSxxUFNJ_1CVfG7gyAOL878R1NSdfIogBfjhpM6HN4asKi98Wu73BIo1K7X6AUpa4-1vDUK1VpytYH1AHWAl2tVFteJXkh57xgTglvyyuDZvJH0e4yQfUilFly5wtxNhvyab427Df_YZXf" }}
-              style={styles.avatar}
-            />
+            <UserAvatar size={128} style={styles.avatar} />
             <Pressable style={styles.editAvatarButton}>
               <Ionicons name="pencil" size={16} color="#ffffff" />
             </Pressable>
           </View>
           
-          <Text style={styles.userName}>Aba Mensah</Text>
+          <Text style={styles.userName}>{user?.username || user?.email || "Student"}</Text>
           <View style={styles.locationContainer}>
             <Ionicons name="location" size={16} color={colors.muted} />
-            <Text style={styles.locationText}>Accra, Ghana</Text>
+            <Text style={styles.locationText}>Location not set</Text>
           </View>
 
           <Pressable style={styles.editProfileButton}>

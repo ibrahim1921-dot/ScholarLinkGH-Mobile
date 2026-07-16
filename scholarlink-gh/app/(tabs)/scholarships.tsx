@@ -10,6 +10,7 @@ import { EmptyState, ErrorState, LoadingState } from '../../components/StateView
 import { colors } from '../../constants/colors';
 import { scholarshipService, ScholarshipFilters } from '../../services/scholarshipService';
 import { Scholarship } from '../../types/api';
+import { useSavedScholarships } from '../../hooks/useScholarship';
 
 export default function ScholarshipsScreen() {
   const [scholarships, setScholarships] = useState<Scholarship[]>([]);
@@ -18,6 +19,9 @@ export default function ScholarshipsScreen() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
+  const [activeFilter, setActiveFilter] = useState<string | null>(null);
+
+  const { data: savedScholarships } = useSavedScholarships();
 
   useEffect(() => {
     loadPage(0);
@@ -42,6 +46,14 @@ export default function ScholarshipsScreen() {
       setError(e?.message ?? 'Failed to load');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleFilterPress = (filter: string) => {
+    if (activeFilter === filter) {
+      setActiveFilter(null);
+    } else {
+      setActiveFilter(filter);
     }
   };
 
@@ -82,22 +94,29 @@ export default function ScholarshipsScreen() {
             <Text style={styles.filterBtnTextActive}>Filters</Text>
           </Pressable>
           <View style={styles.filterDivider} />
-          {['Country', 'Field', 'Funding', 'Deadline'].map(filter => (
-            <Pressable key={filter} style={styles.filterBtn}>
-              <Text style={styles.filterBtnText}>{filter}</Text>
-            </Pressable>
-          ))}
+          {['Saved', 'Country', 'Field', 'Funding', 'Deadline'].map(filter => {
+            const isActive = activeFilter === filter;
+            return (
+              <Pressable 
+                key={filter} 
+                style={isActive ? styles.filterBtnActive : styles.filterBtn}
+                onPress={() => handleFilterPress(filter)}
+              >
+                <Text style={isActive ? styles.filterBtnTextActive : styles.filterBtnText}>{filter}</Text>
+              </Pressable>
+            );
+          })}
         </ScrollView>
       </View>
 
       {/* Scholarship Feed */}
-      {scholarships.length === 0 && !loading ? (
+      {(activeFilter === 'Saved' ? (savedScholarships || []) : scholarships).length === 0 && !loading ? (
         <View style={{ flex: 1, paddingHorizontal: 20 }}>
-          <EmptyState title="No Results" message="Try different search terms." />
+          <EmptyState title="No Results" message={activeFilter === 'Saved' ? "You haven't saved any scholarships yet." : "Try different search terms."} />
         </View>
       ) : (
         <FlatList
-          data={scholarships}
+          data={activeFilter === 'Saved' ? (savedScholarships || []) : scholarships}
           keyExtractor={(s) => String(s.id)}
           renderItem={({ item }) => (
             <ScholarshipCard
@@ -105,7 +124,11 @@ export default function ScholarshipsScreen() {
               onPress={() => router.push({ pathname: '/scholarship/[id]', params: { id: String(item.id) } })}
             />
           )}
-          onEndReached={() => hasMore && loadPage(page + 1)}
+          onEndReached={() => {
+            if (activeFilter !== 'Saved' && hasMore) {
+              loadPage(page + 1);
+            }
+          }}
           onEndReachedThreshold={0.4}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}

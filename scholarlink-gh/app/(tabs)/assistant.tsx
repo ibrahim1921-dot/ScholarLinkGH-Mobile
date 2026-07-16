@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors } from "../../constants/colors";
 import { aiService } from "../../services/aiService";
 import { useAuth } from "../../hooks/useAuth";
+import { UserAvatar } from "../../components/UserAvatar";
 
 interface Message {
   id: string;
@@ -162,12 +163,7 @@ export default function AssistantScreen() {
             </View>
 
             {msg.sender === 'user' && (
-              <View style={styles.userAvatar}>
-                <Image 
-                  source={{ uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuD3tqu3XwDgraevl3eujHLtOoY8_ZMk2DrhJkofesiWYWnLmbZ9kgSVmSd0pRX5I8T_zJPxx0G1FYsbHZkITcdRQDDcL0MVU2UpJT7dGz-pVXkT6Rju-kqVGv0q6adWY0GQDgpkCYkomSEV23zo-fbDUYolFJAvu8f3XwScpLTY-pp2pymbYoMLUyBcTyCFcKPOFIqrtPAWffwrrlh5XHrcgeBqEFy1p0v4vMpIV3C1qnnpD2g-n-ohaKWm9R0WcqNwCdE2qMy3wGDC" }}
-                  style={{ width: '100%', height: '100%', borderRadius: 16 }}
-                />
-              </View>
+              <UserAvatar size={32} style={styles.userAvatar} />
             )}
           </View>
         ))}

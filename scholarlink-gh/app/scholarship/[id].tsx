@@ -1,43 +1,33 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useLocalSearchParams, router } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Alert, Linking, StyleSheet, Text, View, ScrollView, Pressable, Platform, SafeAreaView } from 'react-native';
+import { useLocalSearchParams, router, Stack } from 'expo-router';
+import { useState } from 'react';
+import { Alert, Linking, StyleSheet, Text, View, ScrollView, Pressable, Platform, Share } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Screen } from '../../components/Screen';
 import { ErrorState, LoadingState } from '../../components/StateView';
 import { colors } from '../../constants/colors';
-import { scholarshipService } from '../../services/scholarshipService';
 import { trackerService } from '../../services/trackerService';
-import { EligibilityResult, Scholarship } from '../../types/api';
+import { useScholarshipDetail, useScholarshipEligibility, useSavedScholarships, useToggleSaveScholarship } from '../../hooks/useScholarship';
 
 export default function ScholarshipDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const scholarshipId = Number(id);
 
-  const [scholarship, setScholarship] = useState<Scholarship | null>(null);
-  const [eligibility, setEligibility] = useState<EligibilityResult | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [tracking, setTracking] = useState(false);
+  const { 
+    data: scholarship, 
+    isLoading: isScholarshipLoading, 
+    error: scholarshipError,
+    isError: isScholarshipError
+  } = useScholarshipDetail(scholarshipId);
 
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const [s, e] = await Promise.all([
-          scholarshipService.getScholarship(scholarshipId),
-          scholarshipService.checkEligibility(scholarshipId).catch(() => null),
-        ]);
-        setScholarship(s);
-        setEligibility(e);
-      } catch (err: any) {
-        setError(err?.message ?? 'Failed to load scholarship');
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [scholarshipId]);
+  const { data: eligibility } = useScholarshipEligibility(scholarshipId);
+  const { data: savedScholarships } = useSavedScholarships();
+  const toggleSaveMutation = useToggleSaveScholarship();
+
+  const loading = isScholarshipLoading;
+  const error = isScholarshipError ? (scholarshipError as Error)?.message ?? 'Failed to load scholarship' : null;
+  const [tracking, setTracking] = useState(false);
 
   const handleTrack = async () => {
     setTracking(true);
@@ -55,14 +45,23 @@ export default function ScholarshipDetailScreen() {
   if (error || !scholarship) return <Screen scroll={false}><ErrorState message={error ?? 'Not found'} /></Screen>;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <Stack.Screen options={{ headerShown: false }} />
       {/* Header */}
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.iconBtn}>
           <Ionicons name="arrow-back" size={24} color={colors.primary} />
         </Pressable>
         <Text style={styles.headerTitle}>Scholarship Detail</Text>
-        <Pressable style={styles.iconBtn}>
+        <Pressable style={styles.iconBtn} onPress={async () => {
+          try {
+            await Share.share({
+              message: `Check out this scholarship: ${scholarship.name}\nDeadline: ${scholarship.daysUntilDeadline != null ? scholarship.daysUntilDeadline + ' days left' : 'Varies'}\n${scholarship.officialLink}`,
+            });
+          } catch (error: any) {
+            Alert.alert('Error', error.message);
+          }
+        }}>
           <Ionicons name="share-outline" size={24} color={colors.primary} />
         </Pressable>
       </View>
@@ -186,8 +185,15 @@ export default function ScholarshipDetailScreen() {
 
       {/* Sticky Bottom Actions */}
       <View style={styles.bottomActions}>
-        <Pressable style={styles.actionBtnSecondary}>
-          <Ionicons name="bookmark-outline" size={24} color={colors.primary} />
+        <Pressable 
+          style={styles.actionBtnSecondary}
+          onPress={() => toggleSaveMutation.mutate(scholarshipId)}
+        >
+          <Ionicons 
+            name={savedScholarships?.some(s => s.id === scholarshipId) ? "bookmark" : "bookmark-outline"} 
+            size={24} 
+            color={savedScholarships?.some(s => s.id === scholarshipId) ? colors.primary : colors.primary} 
+          />
         </Pressable>
         <Pressable style={styles.actionBtnSecondary} onPress={handleTrack} disabled={tracking}>
           <Ionicons name={tracking ? "hourglass-outline" : "stats-chart-outline"} size={24} color={colors.primary} />

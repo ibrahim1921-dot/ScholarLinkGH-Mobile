@@ -9,6 +9,7 @@ import {
   ErrorState,
   LoadingState,
 } from "../../components/StateView";
+import { UserAvatar } from "../../components/UserAvatar";
 import { colors } from "../../constants/colors";
 import { trackerService } from "../../services/trackerService";
 import { ApplicationTracker } from "../../types/api";
@@ -79,10 +80,7 @@ export default function ApplicationsScreen() {
           <Ionicons name="menu" size={24} color={colors.primary} style={{ marginRight: 8 }} />
           <Text style={styles.headerTitle}>Scholarship Tracker</Text>
         </View>
-        <Image 
-          source={{ uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuC9PLgqx5Ft7taPrx0iocBC4rIPAyFxnfF9iHEEHbQAiEi8fM-ZD0tHGoA4T-q_wp_DovNM6S3QUmegZGe7zCWgVDukUeZ5f15DLD032Kd3dBOxgHvyTTGIE-imoRMOfHa5qVDqNEcRgKTOZZbGgRtPiVnsU8p9DhPaFT7ezom8i_TugVpbwgvl7Eq44ZHp2efKF8uOYHwAZPlyBKSiLMZ8SVjsn30iG2fsecz7QuPvGyuZ8NVeludnIRxGKDOl3a3F_VSADVyvfacK" }} 
-          style={styles.avatar} 
-        />
+        <UserAvatar size={32} style={styles.avatar} />
       </View>
 
       {/* Tab Navigation */}

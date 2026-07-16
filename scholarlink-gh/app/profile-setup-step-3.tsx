@@ -1,22 +1,48 @@
 import { router } from "expo-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
   View,
   ScrollView,
   Pressable,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { colors } from "../constants/colors";
+import { profileService } from "../services/profileService";
+import { useQueryClient } from "@tanstack/react-query";
 
 const TESTS = ["WASSCE", "IELTS", "SAT", "GRE"];
 
 export default function ProfileSetupStep3Screen() {
+  const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
   const [selectedTests, setSelectedTests] = useState<string[]>(["IELTS"]);
+  const [languageLevel, setLanguageLevel] = useState("Fluent");
+  const [fetching, setFetching] = useState(true);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const profile = await profileService.getProfile();
+        if (profile.languageProficiency) {
+          const eng = profile.languageProficiency.split(',').find(l => l.startsWith('English:'));
+          if (eng) setLanguageLevel(eng.split(':')[1]);
+        }
+      } catch (e) {
+        // Ignore if profile doesn't exist
+      } finally {
+        setFetching(false);
+      }
+    };
+    loadProfile();
+  }, []);
 
   const toggleTest = (test: string) => {
     if (selectedTests.includes(test)) {
@@ -26,14 +52,28 @@ export default function ProfileSetupStep3Screen() {
     }
   };
 
-  const handleFinish = () => {
-    // In a real app, this would submit the profile data
-    // For now, we just redirect to the tabs (Home)
-    router.replace("/(tabs)");
+  const handleFinish = async () => {
+    setLoading(true);
+    try {
+      await profileService.updateProfile({
+        language_proficiency: `English:${languageLevel}`,
+      });
+      queryClient.invalidateQueries({ queryKey: ['profileCompleteness'] });
+      router.replace("/(tabs)");
+    } catch (e: any) {
+      Alert.alert('Error', e?.message ?? 'Something went wrong');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      {fetching && (
+        <View style={[StyleSheet.absoluteFill, { zIndex: 100, backgroundColor: 'rgba(255,255,255,0.7)', justifyContent: 'center', alignItems: 'center' }]}>
+          <Text style={{ fontFamily: 'PlusJakartaSans_600SemiBold', color: colors.primary }}>Loading...</Text>
+        </View>
+      )}
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -45,11 +85,15 @@ export default function ProfileSetupStep3Screen() {
         <View style={styles.headerRight} />
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          automaticallyAdjustKeyboardInsets
+          showsVerticalScrollIndicator={false}
+        >
         {/* Progress */}
         <View style={styles.progressContainer}>
           <View style={styles.progressTextRow}>
@@ -91,8 +135,8 @@ export default function ProfileSetupStep3Screen() {
                   <Text style={styles.languageLevel}>Primary Language</Text>
                 </View>
               </View>
-              <Pressable style={styles.languageSelect}>
-                <Text style={styles.languageSelectText}>Fluent</Text>
+              <Pressable style={styles.languageSelect} onPress={() => setLanguageLevel(languageLevel === "Fluent" ? "Intermediate" : "Fluent")}>
+                <Text style={styles.languageSelectText}>{languageLevel}</Text>
                 <Ionicons name="chevron-down" size={16} color={colors.primary} />
               </Pressable>
             </View>
@@ -174,13 +218,15 @@ export default function ProfileSetupStep3Screen() {
           <Text style={styles.navButtonSecondaryText}>Back</Text>
         </Pressable>
         <Pressable
-          style={styles.navButtonFinish}
+          style={[styles.navButtonFinish, loading && { opacity: 0.7 }]}
           onPress={handleFinish}
+          disabled={loading}
         >
           <Ionicons name="checkmark-circle" size={20} color="#ffffff" />
-          <Text style={styles.navButtonFinishText}>Finish</Text>
+          <Text style={styles.navButtonFinishText}>{loading ? 'Saving...' : 'Finish'}</Text>
         </Pressable>
       </View>
+      </KeyboardAvoidingView>
     </View>
   );
 }
@@ -215,7 +261,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 24,
-    paddingBottom: 100,
+    paddingBottom: 24,
   },
   progressContainer: {
     marginBottom: 24,
@@ -465,10 +511,6 @@ const styles = StyleSheet.create({
   },
   footerNav: {
     flexDirection: "row",
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
     paddingHorizontal: 20,
     paddingVertical: 16,
     backgroundColor: colors.surface,

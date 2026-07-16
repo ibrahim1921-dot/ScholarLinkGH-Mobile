@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { colors } from "../constants/colors";
+import { UserAvatar } from "../components/UserAvatar";
 
 export default function AIEssayScreen() {
   const insets = useSafeAreaInsets();
@@ -36,12 +37,7 @@ export default function AIEssayScreen() {
           <Pressable onPress={() => router.back()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color={colors.primary} />
           </Pressable>
-          <View style={styles.avatarContainer}>
-            <Image
-              source={{ uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuAfm9oRj5CEUAT4U7-uJgZ07ApI8DI8xfgpZFna-4jcr7lOBGBEyTRwMaKw-LUEX9hcWuy5wOzUwIlSB5o3eeYpTlhSEmB6flhLXqbnDh-BSeBxq-UWFf-cGcixQyM7BKrX9uugs8Za6qPgIm-Es7xzekl3AKmoZ9KaIWKs6UEm0W4A0jTpHubIup8eUSaG0TMeQ1Q3DsyukWDjbHLnXpdI1FSW9xZ66sFbMnbvJaiZdhnC3i08crvrYhHrCE9v2CE5135d9cBB2Ye7" }}
-              style={styles.avatar}
-            />
-          </View>
+          <UserAvatar size={32} style={{ marginRight: 4 }} />
           <Text style={styles.headerTitle}>ScholarLink GH</Text>
         </View>
         <Pressable style={styles.iconButton}>

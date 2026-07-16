@@ -12,6 +12,16 @@ export const trackerService = {
     }
   },
 
+  async getTrackerDetail(id: number): Promise<ApplicationTracker> {
+    try {
+      const response = await apiClient.get<ApplicationTracker>(`/api/v1/trackers/${id}`);
+      return response.data;
+    } catch (error: any) {
+      const message = error.response?.data?.message || error.message || 'Something went wrong';
+      throw new Error(message);
+    }
+  },
+
   async createTracker(scholarshipId: number): Promise<ApplicationTracker> {
     try {
       const response = await apiClient.post<ApplicationTracker>('/api/v1/trackers', { scholarshipId });

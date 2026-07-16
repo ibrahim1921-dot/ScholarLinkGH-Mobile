@@ -18,6 +18,15 @@ import {
 import { colors } from "../constants/colors";
 import { AuthProvider } from "../hooks/useAuth";
 import { useNotifications } from "../hooks/useNotifications";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 0,
+    },
+  },
+});
 
 SplashScreen.preventAutoHideAsync();
 
@@ -56,28 +65,30 @@ export default function RootLayout() {
   }
 
   return (
-    <SafeAreaProvider>
-      <AuthProvider>
-        <NotificationInitializer />
-        <StatusBar style="dark" />
-        <Stack
-          screenOptions={{
-            headerStyle: { backgroundColor: colors.background },
-            headerTintColor: colors.ink,
-            headerShadowVisible: false,
-          }}
-        >
-          <Stack.Screen name="index" options={{ headerShown: false }} />
-          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="profile-setup" options={{ title: "Profile" }} />
-          <Stack.Screen name="documents" options={{ title: "Documents" }} />
-          <Stack.Screen
-            name="scholarship/[id]"
-            options={{ title: "Scholarship" }}
-          />
-        </Stack>
-      </AuthProvider>
-    </SafeAreaProvider>
+    <QueryClientProvider client={queryClient}>
+      <SafeAreaProvider>
+        <AuthProvider>
+          <NotificationInitializer />
+          <StatusBar style="dark" />
+          <Stack
+            screenOptions={{
+              headerStyle: { backgroundColor: colors.background },
+              headerTintColor: colors.ink,
+              headerShadowVisible: false,
+            }}
+          >
+            <Stack.Screen name="index" options={{ headerShown: false }} />
+            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="profile-setup" options={{ title: "Profile" }} />
+            <Stack.Screen name="documents" options={{ title: "Documents" }} />
+            <Stack.Screen
+              name="scholarship/[id]"
+              options={{ title: "Scholarship" }}
+            />
+          </Stack>
+        </AuthProvider>
+      </SafeAreaProvider>
+    </QueryClientProvider>
   );
 }

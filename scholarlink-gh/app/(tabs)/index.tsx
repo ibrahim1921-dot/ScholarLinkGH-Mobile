@@ -1,23 +1,62 @@
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { FlatList, StyleSheet, Text, View, Image, ScrollView, Pressable, Platform } from "react-native";
+import { StyleSheet, Text, View, Image, ScrollView, Pressable, Modal } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { AppButton } from "../../components/AppButton";
+
 import { Screen } from "../../components/Screen";
 import { ErrorState, LoadingState } from "../../components/StateView";
+import { UserAvatar } from "../../components/UserAvatar";
+import { CircularProgress } from "../../components/CircularProgress";
 import { colors } from "../../constants/colors";
 import { useAuth } from "../../hooks/useAuth";
 import { aiService } from "../../services/aiService";
 import { trackerService } from "../../services/trackerService";
+import { profileService } from "../../services/profileService";
 import { ApplicationTracker, ScholarshipMatch } from "../../types/api";
+import { useQuery } from "@tanstack/react-query";
+import { useSavedScholarships, useToggleSaveScholarship } from "../../hooks/useScholarship";
 
 export default function HomeScreen() {
   const { user, signOut } = useAuth();
+  const insets = useSafeAreaInsets();
+
+  // Extract first name from username (take first word), fall back to email or "Student"
+  const displayName = (() => {
+    const username = user?.username;
+    if (username) {
+      const firstName = username.split(' ')[0].split('@')[0];
+      return firstName;
+    }
+    return user?.email?.split('@')[0] ?? 'Student';
+  })();
   const [matches, setMatches] = useState<ScholarshipMatch[]>([]);
   const [trackers, setTrackers] = useState<ApplicationTracker[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [menuVisible, setMenuVisible] = useState(false);
+
+  const { data: savedScholarships } = useSavedScholarships();
+  const toggleSaveMutation = useToggleSaveScholarship();
+
+  const { data: completenessData } = useQuery({
+    queryKey: ['profileCompleteness'],
+    queryFn: profileService.getProfileCompleteness,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  const completenessScore = completenessData?.completeness ?? 0;
+  const nextStep = completenessData?.nextStep ?? "/profile-setup";
+
+  const handleProfilePress = () => {
+    if (menuVisible) setMenuVisible(false);
+    if (completenessScore === 100) {
+      router.push("/profile-summary");
+    } else {
+      router.push(nextStep as any);
+    }
+  };
 
   useEffect(() => {
     fetchData();
@@ -46,21 +85,67 @@ export default function HomeScreen() {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <View style={styles.headerLeft}>
-          <Image 
-            source={{ uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuDRvtmHQiTXOAImqwe-ahJGbitOf0G8Se8v_0QVzxezn4DnNmnaHjFW0i2WfILemzft2jmVmjA3R1Y01ur4uZkvs2mgXeO_TS-Z0rwT3BRxIOOIW76XzEnP8-XUroiw6ESLQ9_GCQrstGgPfYmOX0hPaxckpwcIL4DupQ9SNnFdsdNOtQ2nzi3xgi8HyAl6QETHTp_vndDlyC3rloFdun9x88g0XCHtMJWm-8B6pT5V9dqlyGDaTX3G-XgTmNtx7WDic_oWSAyn_3Py" }} 
-            style={styles.avatar} 
-          />
-          <View>
-            <Text style={styles.greeting}>Hello, {user?.username ?? "Student"}!</Text>
+          <UserAvatar size={48} style={styles.avatar} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.greeting} numberOfLines={1} ellipsizeMode="tail">Hello, {displayName}!</Text>
             <Text style={styles.greetingSub}>Your career journey continues.</Text>
           </View>
         </View>
-        <Pressable style={styles.iconBtn} onPress={() => router.push("/notifications")}>
-          <Ionicons name="notifications-outline" size={24} color={colors.primary} />
-        </Pressable>
+        <View style={styles.headerRight}>
+          <Pressable style={styles.iconBtn} onPress={() => router.push("/notifications")}>
+            <Ionicons name="notifications-outline" size={24} color={colors.primary} />
+          </Pressable>
+          <Pressable style={styles.profileIcon} onPress={() => setMenuVisible(true)}>
+            <Ionicons name="person-outline" size={20} color={colors.primary} />
+          </Pressable>
+        </View>
       </View>
+
+      {/* Profile Menu Modal */}
+      <Modal
+        visible={menuVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuVisible(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setMenuVisible(false)}>
+          <View style={[styles.menuContainer, { top: insets.top + 60 }]}>
+            <Pressable
+              style={styles.menuItem}
+              onPress={() => { setMenuVisible(false); router.push("/profile-settings"); }}
+            >
+              <Ionicons name="person-outline" size={20} color={colors.primary} />
+              <Text style={styles.menuItemText}>View Profile</Text>
+            </Pressable>
+            <View style={styles.menuDivider} />
+            <Pressable
+              style={styles.menuItem}
+              onPress={handleProfilePress}
+            >
+              <Ionicons name="create-outline" size={20} color={colors.primary} />
+              <Text style={styles.menuItemText}>Complete Profile</Text>
+            </Pressable>
+            <View style={styles.menuDivider} />
+            <Pressable
+              style={styles.menuItem}
+              onPress={() => { setMenuVisible(false); router.push("/profile-settings"); }}
+            >
+              <Ionicons name="settings-outline" size={20} color={colors.primary} />
+              <Text style={styles.menuItemText}>Settings</Text>
+            </Pressable>
+            <View style={styles.menuDivider} />
+            <Pressable
+              style={styles.menuItem}
+              onPress={() => { setMenuVisible(false); signOut(); }}
+            >
+              <Ionicons name="log-out-outline" size={20} color={colors.danger} />
+              <Text style={[styles.menuItemText, { color: colors.danger }]}>Sign Out</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* AI Profile Score Card */}
@@ -70,19 +155,23 @@ export default function HomeScreen() {
           </View>
           <View style={styles.scoreContent}>
             <View style={styles.scoreRingContainer}>
-              {/* Circular Progress Placeholder */}
-              <View style={styles.scoreRingBg}>
-                <View style={styles.scoreRingFill} />
+              <CircularProgress
+                percentage={completenessScore}
+                size={64}
+                strokeWidth={6}
+                color="#1b6d24"
+                backgroundColor="#e2e2e7"
+              >
                 <View style={styles.scoreRingInner}>
-                  <Text style={styles.scoreText}>95%</Text>
+                  <Text style={styles.scoreText}>{completenessScore}%</Text>
                 </View>
-              </View>
+              </CircularProgress>
             </View>
             <View style={styles.scoreTextContainer}>
               <Text style={styles.scoreTitle}>Profile Strength</Text>
-              <Text style={styles.scoreDesc}>Complete your profile for better scholarship matches.</Text>
-              <Pressable style={styles.scoreAction} onPress={() => router.push("/profile-setup")}>
-                <Text style={styles.scoreActionText}>Complete Profile</Text>
+              <Text style={styles.scoreDesc}>{completenessScore === 100 ? 'Your profile is complete. Great matches await!' : 'Complete your profile for better scholarship matches.'}</Text>
+              <Pressable style={styles.scoreAction} onPress={handleProfilePress}>
+                <Text style={styles.scoreActionText}>{completenessScore === 100 ? 'View Profile' : 'Complete Profile'}</Text>
                 <Ionicons name="arrow-forward" size={16} color={colors.primary} />
               </Pressable>
             </View>
@@ -105,8 +194,8 @@ export default function HomeScreen() {
               </View>
             ) : (
               matches.slice(0, 5).map((match) => (
-                <Pressable 
-                  key={match.matchId} 
+                <Pressable
+                  key={match.matchId}
                   style={styles.matchCard}
                   onPress={() => router.push(`/scholarship/${match.scholarshipId}`)}
                 >
@@ -114,7 +203,19 @@ export default function HomeScreen() {
                     <View style={styles.matchBadge}>
                       <Text style={styles.matchBadgeText}>{match.matchScore}% AI Match</Text>
                     </View>
-                    <Ionicons name="bookmark-outline" size={20} color={colors.muted} />
+                    <Pressable
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        toggleSaveMutation.mutate(match.scholarshipId);
+                      }}
+                      hitSlop={10}
+                    >
+                      <Ionicons
+                        name={savedScholarships?.some(s => s.id === match.scholarshipId) ? "bookmark" : "bookmark-outline"}
+                        size={20}
+                        color={savedScholarships?.some(s => s.id === match.scholarshipId) ? colors.primary : colors.muted}
+                      />
+                    </Pressable>
                   </View>
                   <Text style={styles.matchTitle} numberOfLines={2}>{match.scholarshipName || `Scholarship #${match.scholarshipId}`}</Text>
                   <View style={styles.matchDetails}>
@@ -144,27 +245,31 @@ export default function HomeScreen() {
               <Text style={styles.emptyText}>No applications tracked yet.</Text>
             ) : (
               trackers.slice(0, 3).map((tracker) => (
-                <View key={tracker.id} style={styles.trackerCard}>
+                <Pressable
+                  key={tracker.id}
+                  style={({ pressed }) => [styles.trackerCard, pressed && { opacity: 0.7, transform: [{ scale: 0.98 }] }]}
+                  onPress={() => router.push({ pathname: '/application/[trackerId]' as any, params: { trackerId: String(tracker.id) } })}
+                >
                   <View style={styles.trackerLeft}>
                     <View style={[styles.trackerIconBox, tracker.status === 'AWARDED' ? styles.trackerIconSuccess : tracker.status === 'REJECTED' ? styles.trackerIconDanger : styles.trackerIconWarning]}>
-                      <Ionicons 
-                        name={tracker.status === 'AWARDED' ? "trophy" : tracker.status === 'REJECTED' ? "close-circle" : "time"} 
-                        size={24} 
-                        color={tracker.status === 'AWARDED' ? "#005312" : tracker.status === 'REJECTED' ? "#ba1a1a" : "#723610"} 
+                      <Ionicons
+                        name={tracker.status === 'AWARDED' ? "trophy" : tracker.status === 'REJECTED' ? "close-circle" : "time"}
+                        size={24}
+                        color={tracker.status === 'AWARDED' ? "#005312" : tracker.status === 'REJECTED' ? "#ba1a1a" : "#723610"}
                       />
                     </View>
                     <View>
-                      <Text style={styles.trackerTitle}>Scholarship #{tracker.scholarshipId}</Text>
+                      <Text style={styles.trackerTitle}>{tracker.scholarshipName || `Scholarship #${tracker.scholarshipId}`}</Text>
                       <View style={styles.trackerStatusRow}>
                         <Ionicons name="information-circle" size={14} color={colors.muted} />
                         <Text style={styles.trackerStatusText}>{tracker.status}</Text>
                       </View>
                     </View>
                   </View>
-                  <Pressable style={styles.trackerArrow}>
+                  <View style={styles.trackerArrow}>
                     <Ionicons name="arrow-forward" size={20} color={colors.primary} />
-                  </Pressable>
-                </View>
+                  </View>
+                </Pressable>
               ))
             )}
           </View>
@@ -179,14 +284,11 @@ export default function HomeScreen() {
               <Text style={styles.bannerBtnText}>Start Coaching</Text>
             </Pressable>
           </View>
-          <Image 
-            source={{ uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuDwvVpPYIcVDTRuB8Ct0vNvt3gLpY1ec1QQchPVzfzHPos_Xhwuf0mBlh4hNt7hEevynqDsBfCgqeH9b-HyQoiu4yhAEclsQcr1OezAZRMz29Rszp0PQQ1ScEdjHJ7x39tBaM7pE4MdEqf14DAja0Jul04JRQfwwrkIDu0tvS0NsCSI9k1QL-sWk8jWAkFtgyWGvOIkqgZAzChsfi1FU-BTsvAi-Q14LJw_s3p8NjOJdYzcxnYby1vaRhpXEbXepD9WS6jI1qs7gfcT" }} 
-            style={styles.bannerImg} 
+          <Image
+            source={{ uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuDwvVpPYIcVDTRuB8Ct0vNvt3gLpY1ec1QQchPVzfzHPos_Xhwuf0mBlh4hNt7hEevynqDsBfCgqeH9b-HyQoiu4yhAEclsQcr1OezAZRMz29Rszp0PQQ1ScEdjHJ7x39tBaM7pE4MdEqf14DAja0Jul04JRQfwwrkIDu0tvS0NsCSI9k1QL-sWk8jWAkFtgyWGvOIkqgZAzChsfi1FU-BTsvAi-Q14LJw_s3p8NjOJdYzcxnYby1vaRhpXEbXepD9WS6jI1qs7gfcT" }}
+            style={styles.bannerImg}
           />
         </View>
-        
-        {/* Temporary Signout for testing */}
-        <AppButton title="Sign Out" onPress={signOut} variant="ghost" style={{ marginTop: 24 }} />
       </ScrollView>
     </View>
   );
@@ -202,7 +304,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === "ios" ? 10 : 20,
     paddingBottom: 10,
     backgroundColor: colors.surface,
     zIndex: 10,
@@ -211,6 +312,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+    flex: 1,
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   avatar: {
     width: 48,
@@ -235,6 +342,49 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
+  },
+  profileIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.3)",
+  },
+  menuContainer: {
+    position: "absolute",
+    right: 20,
+    width: 220,
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    paddingVertical: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  menuItemText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 15,
+    color: colors.ink,
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: colors.surfaceMuted,
+    marginHorizontal: 16,
   },
   scrollContent: {
     padding: 20,
@@ -269,24 +419,6 @@ const styles = StyleSheet.create({
   scoreRingContainer: {
     width: 64,
     height: 64,
-  },
-  scoreRingBg: {
-    width: "100%",
-    height: "100%",
-    borderRadius: 32,
-    backgroundColor: "#e2e2e7",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  scoreRingFill: {
-    position: "absolute",
-    width: "100%",
-    height: "100%",
-    borderRadius: 32,
-    borderWidth: 6,
-    borderColor: "#1b6d24",
-    borderRightColor: "transparent",
-    transform: [{ rotate: "45deg" }],
   },
   scoreRingInner: {
     width: 52,
@@ -418,7 +550,7 @@ const styles = StyleSheet.create({
     marginTop: "auto",
   },
   deadlineBadge: {
-    backgroundColor: "#ffdad6", // error-container
+    backgroundColor: "#ffdbca", // warning-container (amber)
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
@@ -426,7 +558,7 @@ const styles = StyleSheet.create({
   deadlineBadgeText: {
     fontFamily: "BeVietnamPro_600SemiBold",
     fontSize: 12,
-    color: "#93000a",
+    color: "#723610", // on-warning-container
   },
   detailsBtn: {
     flexDirection: "row",
@@ -496,11 +628,16 @@ const styles = StyleSheet.create({
   },
   bannerContainer: {
     backgroundColor: colors.primary,
-    borderRadius: 24,
+    borderRadius: 16,
     padding: 24,
     flexDirection: "row",
     alignItems: "center",
     overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
   },
   bannerContent: {
     flex: 1,

@@ -52,4 +52,24 @@ export const scholarshipService = {
       throw new Error(message);
     }
   },
+
+  async toggleSaveScholarship(id: number): Promise<{ saved: boolean }> {
+    try {
+      const response = await apiClient.post<{ saved: boolean }>(`/api/v1/scholarships/${id}/save`);
+      return response.data;
+    } catch (error: any) {
+      const message = error.response?.data?.message || error.message || 'Something went wrong';
+      throw new Error(message);
+    }
+  },
+
+  async getSavedScholarships(): Promise<Scholarship[]> {
+    try {
+      const response = await apiClient.get<Scholarship[]>('/api/v1/scholarships/saved');
+      return response.data;
+    } catch (error: any) {
+      const message = error.response?.data?.message || error.message || 'Something went wrong';
+      throw new Error(message);
+    }
+  },
 };

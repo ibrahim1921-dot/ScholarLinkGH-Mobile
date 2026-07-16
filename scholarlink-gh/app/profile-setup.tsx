@@ -1,7 +1,9 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Alert, StyleSheet, Text, View, Image, ScrollView, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+
+import { useQueryClient } from '@tanstack/react-query';
 
 import { AppTextInput } from '../components/AppTextInput';
 import { colors } from '../constants/colors';
@@ -9,11 +11,29 @@ import { useAuth } from '../hooks/useAuth';
 import { profileService } from '../services/profileService';
 
 export default function ProfileSetupScreen() {
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const [institution, setInstitution] = useState('');
   const [fieldOfStudy, setFieldOfStudy] = useState('');
   const [gpa, setGpa] = useState('3.5');
   const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(true);
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const profile = await profileService.getProfile();
+        if (profile.institution) setInstitution(profile.institution);
+        if (profile.fieldOfStudy) setFieldOfStudy(profile.fieldOfStudy);
+        if (profile.gpa) setGpa(profile.gpa.toString());
+      } catch (e) {
+        // Profile might not exist yet, that's fine
+      } finally {
+        setFetching(false);
+      }
+    };
+    loadProfile();
+  }, []);
 
   const handleSubmit = async () => {
     if (!institution || !fieldOfStudy) {
@@ -28,6 +48,7 @@ export default function ProfileSetupScreen() {
         field_of_study: fieldOfStudy,
         gpa: gpa ? parseFloat(gpa) : undefined,
       });
+      queryClient.invalidateQueries({ queryKey: ['profileCompleteness'] });
       router.push('/profile-setup-step-2');
     } catch (e: any) {
       Alert.alert('Error', e?.message ?? 'Something went wrong');
@@ -38,6 +59,11 @@ export default function ProfileSetupScreen() {
 
   return (
     <View style={styles.container}>
+      {fetching && (
+        <View style={[StyleSheet.absoluteFill, { zIndex: 100, backgroundColor: 'rgba(255,255,255,0.7)', justifyContent: 'center', alignItems: 'center' }]}>
+          <Text style={{ fontFamily: 'PlusJakartaSans_600SemiBold', color: colors.primary }}>Loading...</Text>
+        </View>
+      )}
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -51,6 +77,7 @@ export default function ProfileSetupScreen() {
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <ScrollView
+          style={{ flex: 1 }}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -142,19 +169,19 @@ export default function ProfileSetupScreen() {
             </View>
           </View>
         </ScrollView>
-      </KeyboardAvoidingView>
 
-      {/* Bottom Navigation Shell */}
-      <View style={styles.bottomNav}>
-        <Pressable style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={20} color={colors.primary} />
-          <Text style={styles.backButtonText}>Back</Text>
-        </Pressable>
-        <Pressable style={styles.nextButton} onPress={handleSubmit} disabled={loading}>
-          <Text style={styles.nextButtonText}>Next</Text>
-          <Ionicons name="arrow-forward" size={20} color="#ffffff" />
-        </Pressable>
-      </View>
+        {/* Bottom Navigation Shell */}
+        <View style={styles.bottomNav}>
+          <Pressable style={styles.backButton} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={20} color={colors.primary} />
+            <Text style={styles.backButtonText}>Back</Text>
+          </Pressable>
+          <Pressable style={styles.nextButton} onPress={handleSubmit} disabled={loading}>
+            <Text style={styles.nextButtonText}>Next</Text>
+            <Ionicons name="arrow-forward" size={20} color="#ffffff" />
+          </Pressable>
+        </View>
+      </KeyboardAvoidingView>
     </View>
   );
 }
@@ -190,7 +217,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 24,
-    paddingBottom: 100, // Make room for bottom nav
+    paddingBottom: 24,
   },
   progressContainer: {
     marginBottom: 24,
@@ -345,10 +372,6 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.9)',
   },
   bottomNav: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',

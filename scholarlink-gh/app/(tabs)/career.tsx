@@ -4,10 +4,12 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { Screen } from '../../components/Screen';
 import { EmptyState, ErrorState, LoadingState } from '../../components/StateView';
+import { UserAvatar } from '../../components/UserAvatar';
 import { colors } from '../../constants/colors';
 import { jobService } from '../../services/jobService';
 import { aiService } from '../../services/aiService';
 import { JobListing } from '../../types/api';
+import { useSavedScholarships, useToggleSaveScholarship } from '../../hooks/useScholarship';
 
 export default function CareerScreen() {
   const [jobs, setJobs] = useState<JobListing[]>([]);
@@ -16,6 +18,9 @@ export default function CareerScreen() {
   const [applyingId, setApplyingId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('All Roles');
+
+  const { data: savedScholarships } = useSavedScholarships();
+  const toggleSaveMutation = useToggleSaveScholarship();
 
   const filters = ['All Roles', 'Internships', 'Entry Level', 'Graduate Roles', 'Remote'];
 
@@ -80,10 +85,7 @@ export default function CareerScreen() {
           <Ionicons name="menu" size={24} color={colors.primary} style={{ marginRight: 8 }} />
           <Text style={styles.headerTitle}>Jobs & Internships</Text>
         </View>
-        <Image 
-          source={{ uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuD6pKyuGMfgYZKULBCJjHVD6a_pAsaL4sLaQ6CvIfC1XYMPB0fEiMPaOlbMwOtPxBpI_YlJ17hTXdk1fd1UbK5w3vQDQkm0AJ827ygwvA0SI5zA6Zmj6bWJPs-Q22KzsMBypXt9TE6zq56hSbMi1hOMenqB-Qw2dW7RgHYXvpUzuPFo_qqucyQO2hRFq5jYiTODfKX69SZHZ5fb5MguPE7tGkd0wV5kr8qYYZ4FDs1GDd3qzbjnerzD5THV5bBsrTXZN-yDDEhnWjFz" }} 
-          style={styles.avatar} 
-        />
+        <UserAvatar size={32} style={styles.avatar} />
       </View>
 
       <FlatList
@@ -181,8 +183,15 @@ export default function CareerScreen() {
                   <Ionicons name="open-outline" size={20} color={colors.primary} />
                 </Pressable>
               ) : (
-                <Pressable style={styles.btnBookmark}>
-                  <Ionicons name="bookmark-outline" size={20} color={colors.primary} />
+                <Pressable 
+                  style={styles.btnBookmark}
+                  onPress={() => toggleSaveMutation.mutate(item.id)}
+                >
+                  <Ionicons 
+                    name={savedScholarships?.some(s => s.id === item.id) ? "bookmark" : "bookmark-outline"} 
+                    size={20} 
+                    color={savedScholarships?.some(s => s.id === item.id) ? colors.primary : colors.primary} 
+                  />
                 </Pressable>
               )}
             </View>

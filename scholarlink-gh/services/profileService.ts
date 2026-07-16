@@ -12,6 +12,19 @@ export const profileService = {
     }
   },
 
+  async getProfileCompleteness(): Promise<{ completeness: number; nextStep: string }> {
+    try {
+      const response = await apiClient.get<{ completeness: number; next_step: string }>('/api/v1/profile/completeness');
+      return {
+        completeness: response.data.completeness,
+        nextStep: response.data.next_step,
+      };
+    } catch (error: any) {
+      // In case of error (e.g. 404 or network issue), default to 0
+      return { completeness: 0, nextStep: '/profile-setup' };
+    }
+  },
+
   async updateProfile(payload: ProfilePayload): Promise<ApiResponse> {
     try {
       const response = await apiClient.put<ApiResponse>('/api/v1/profile', payload);

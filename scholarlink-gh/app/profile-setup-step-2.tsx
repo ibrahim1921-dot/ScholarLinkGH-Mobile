@@ -1,17 +1,22 @@
 import { router } from "expo-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
   View,
   ScrollView,
   Pressable,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { colors } from "../constants/colors";
 import { AppButton } from "../components/AppButton";
+import { profileService } from "../services/profileService";
+import { useQueryClient } from "@tanstack/react-query";
 
 const COUNTRIES = ["Ghana", "USA", "UK", "Canada", "Germany"];
 
@@ -41,11 +46,34 @@ const SEMESTERS = [
 ];
 
 export default function ProfileSetupStep2Screen() {
+  const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
   const [selectedCountries, setSelectedCountries] = useState<string[]>(["USA"]);
   const [selectedNeed, setSelectedNeed] = useState("medium");
   const [selectedSemester, setSelectedSemester] = useState("fall2025");
   const [showSemesterPicker, setShowSemesterPicker] = useState(false);
+
+  const [fetching, setFetching] = useState(true);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const profile = await profileService.getProfile();
+        if (profile.countryPreference) {
+          setSelectedCountries(profile.countryPreference.split(',').map(s => s.trim()));
+        }
+        if (profile.financialNeed !== undefined) {
+          setSelectedNeed(profile.financialNeed ? "high" : "low");
+        }
+      } catch (e) {
+        // Ignore if profile doesn't exist
+      } finally {
+        setFetching(false);
+      }
+    };
+    loadProfile();
+  }, []);
 
   const toggleCountry = (country: string) => {
     if (selectedCountries.includes(country)) {
@@ -55,8 +83,29 @@ export default function ProfileSetupStep2Screen() {
     }
   };
 
+  const handleNext = async () => {
+    setLoading(true);
+    try {
+      await profileService.updateProfile({
+        country_preference: selectedCountries.join(','),
+        financial_need: selectedNeed === "high" || selectedNeed === "medium",
+      });
+      queryClient.invalidateQueries({ queryKey: ['profileCompleteness'] });
+      router.push("/profile-setup-step-3");
+    } catch (e: any) {
+      Alert.alert('Error', e?.message ?? 'Something went wrong');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      {fetching && (
+        <View style={[StyleSheet.absoluteFill, { zIndex: 100, backgroundColor: 'rgba(255,255,255,0.7)', justifyContent: 'center', alignItems: 'center' }]}>
+          <Text style={{ fontFamily: 'PlusJakartaSans_600SemiBold', color: colors.primary }}>Loading...</Text>
+        </View>
+      )}
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -68,11 +117,15 @@ export default function ProfileSetupStep2Screen() {
         <Text style={styles.headerRight}>ScholarLink GH</Text>
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          automaticallyAdjustKeyboardInsets
+          showsVerticalScrollIndicator={false}
+        >
         {/* Progress */}
         <View style={styles.progressContainer}>
           <View style={styles.progressTextRow}>
@@ -198,13 +251,15 @@ export default function ProfileSetupStep2Screen() {
           <Text style={styles.navButtonSecondaryText}>Back</Text>
         </Pressable>
         <Pressable
-          style={styles.navButtonPrimary}
-          onPress={() => router.push("/profile-setup-step-3")}
+          style={[styles.navButtonPrimary, loading && { opacity: 0.7 }]}
+          onPress={handleNext}
+          disabled={loading}
         >
           <Ionicons name="arrow-forward" size={20} color="#ffffff" />
-          <Text style={styles.navButtonPrimaryText}>Next</Text>
+          <Text style={styles.navButtonPrimaryText}>{loading ? 'Saving...' : 'Next'}</Text>
         </Pressable>
       </View>
+      </KeyboardAvoidingView>
     </View>
   );
 }
@@ -243,7 +298,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 24,
-    paddingBottom: 100, // Space for footer
+    paddingBottom: 24,
   },
   progressContainer: {
     marginBottom: 24,
@@ -439,10 +494,6 @@ const styles = StyleSheet.create({
   },
   footerNav: {
     flexDirection: "row",
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
     paddingHorizontal: 20,
     paddingVertical: 16,
     backgroundColor: colors.surface,
