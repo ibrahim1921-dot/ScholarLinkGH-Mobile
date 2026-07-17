@@ -1,4 +1,4 @@
-import { router } from "expo-router";
+import { router, Stack } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   StyleSheet,
@@ -44,9 +44,10 @@ export default function ProfileSummaryScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+    <View style={[styles.container, { paddingBottom: insets.bottom }]}>
+      <Stack.Screen options={{ headerShown: false }} />
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <View style={styles.headerLeft}>
           <Pressable onPress={() => router.replace("/(tabs)")} style={styles.iconButton}>
             <Ionicons name="arrow-back" size={24} color={colors.primary} />
@@ -146,7 +147,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    height: 56,
+    minHeight: 56,
     backgroundColor: colors.surface,
   },
   headerLeft: {

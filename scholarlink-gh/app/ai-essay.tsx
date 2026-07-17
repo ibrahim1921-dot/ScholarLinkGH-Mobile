@@ -1,4 +1,4 @@
-import { router } from "expo-router";
+import { router, Stack } from "expo-router";
 import { useState } from "react";
 import {
   StyleSheet,
@@ -30,9 +30,9 @@ export default function AIEssayScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      {/* Header */}
-      <View style={styles.header}>
+    <View style={[styles.container, { paddingBottom: insets.bottom }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <View style={styles.headerLeft}>
           <Pressable onPress={() => router.back()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color={colors.primary} />
@@ -40,9 +40,7 @@ export default function AIEssayScreen() {
           <UserAvatar size={32} style={{ marginRight: 4 }} />
           <Text style={styles.headerTitle}>ScholarLink GH</Text>
         </View>
-        <Pressable style={styles.iconButton}>
-          <Ionicons name="notifications-outline" size={24} color={colors.primary} />
-        </Pressable>
+        <View style={{ width: 40 }} />
       </View>
 
       <KeyboardAvoidingView
@@ -177,7 +175,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    height: 56,
+    minHeight: 56,
     backgroundColor: colors.surface,
   },
   headerLeft: {

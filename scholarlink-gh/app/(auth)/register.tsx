@@ -28,13 +28,27 @@ const dsColors = {
 export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
   const { register } = useAuth();
+  const [name, setName] = useState("");
+  const [nameError, setNameError] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [educationLevel, setEducationLevel] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const handleNameChange = (text: string) => {
+    setName(text);
+    if (text.length > 0 && text.trim().length < 2) {
+      setNameError("Name must be at least 2 characters");
+    } else if (text.trim() && !/^[a-zA-Z\s'-]+$/.test(text)) {
+      setNameError("Name can only contain letters, spaces, hyphens, and apostrophes");
+    } else {
+      setNameError("");
+    }
+  };
+
   // Focus states
+  const [nameFocused, setNameFocused] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [phoneFocused, setPhoneFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
@@ -51,6 +65,7 @@ export default function RegisterScreen() {
 
   const submit = async () => {
     if (
+      !name.trim() ||
       !email.trim() ||
       !phone.trim() ||
       !educationLevel ||
@@ -59,10 +74,14 @@ export default function RegisterScreen() {
       Alert.alert("Missing Fields", "Please fill in all fields.");
       return;
     }
+    if (nameError) {
+      Alert.alert("Invalid Name", nameError);
+      return;
+    }
     setLoading(true);
     try {
       await register({
-        username: email.split('@')[0], 
+        username: name.trim(), 
         email: email.trim(),
         phoneNumber: phone.trim(),
         educationLevel: educationLevel as any,
@@ -129,6 +148,28 @@ export default function RegisterScreen() {
                 );
               })}
             </View>
+          </View>
+
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>FULL NAME</Text>
+            <View style={styles.inputWrapper}>
+              <MaterialIcons name="person-outline" size={20} color={dsColors.outline} style={styles.inputLeftIcon} />
+              <TextInput
+                style={[
+                  styles.input, 
+                  nameFocused && styles.inputFocused,
+                  nameError ? styles.inputError : null
+                ]}
+                value={name}
+                onChangeText={handleNameChange}
+                autoCapitalize="words"
+                placeholder="Aba Mensah"
+                placeholderTextColor={dsColors.outline}
+                onFocus={() => setNameFocused(true)}
+                onBlur={() => setNameFocused(false)}
+              />
+            </View>
+            {nameError ? <Text style={styles.errorText}>{nameError}</Text> : null}
           </View>
 
           <View style={styles.fieldContainer}>
@@ -378,6 +419,14 @@ const styles = StyleSheet.create({
   },
   inputFocused: {
     borderBottomColor: dsColors.primaryContainer,
+  },
+  inputError: {
+    borderBottomColor: dsColors.error,
+  },
+  errorText: {
+    color: dsColors.error,
+    fontSize: 12,
+    fontFamily: "BeVietnamPro_400Regular",
   },
   passwordHeader: {
     flexDirection: "row",

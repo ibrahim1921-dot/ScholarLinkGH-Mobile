@@ -21,9 +21,9 @@ export const authService = {
     }
   },
 
-  async verifyOtp(email: string, otpCode: string): Promise<ApiResponse> {
+  async verifyOtp(email: string, otpCode: string): Promise<AuthResponse> {
     try {
-      const response = await apiClient.post<ApiResponse>('/api/v1/auth/verify-otp', { email, otpCode });
+      const response = await apiClient.post<AuthResponse>('/api/v1/auth/verify-otp', { email, otpCode });
       return response.data;
     } catch (error: any) {
       const message = error.response?.data?.message || error.message || 'Something went wrong';
@@ -54,6 +54,16 @@ export const authService = {
   async logout(): Promise<ApiResponse> {
     try {
       const response = await apiClient.post<ApiResponse>('/api/v1/auth/logout');
+      return response.data;
+    } catch (error: any) {
+      const message = error.response?.data?.message || error.message || 'Something went wrong';
+      throw new Error(message);
+    }
+  },
+
+  async getMe(): Promise<AuthResponse> {
+    try {
+      const response = await apiClient.get<AuthResponse>('/api/v1/auth/me');
       return response.data;
     } catch (error: any) {
       const message = error.response?.data?.message || error.message || 'Something went wrong';

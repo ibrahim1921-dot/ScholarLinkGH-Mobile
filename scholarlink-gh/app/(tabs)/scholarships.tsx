@@ -1,5 +1,6 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FlatList, StyleSheet, View, Text, Pressable, ScrollView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -13,6 +14,7 @@ import { Scholarship } from '../../types/api';
 import { useSavedScholarships } from '../../hooks/useScholarship';
 
 export default function ScholarshipsScreen() {
+  const insets = useSafeAreaInsets();
   const [scholarships, setScholarships] = useState<Scholarship[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -63,16 +65,21 @@ export default function ScholarshipsScreen() {
   return (
     <View style={styles.container}>
       {/* TopAppBar */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <View style={styles.headerLeft}>
           <View style={styles.avatarPlaceholder}>
             <Ionicons name="person" size={20} color={colors.primary} />
           </View>
           <Text style={styles.headerTitle}>ScholarLink GH</Text>
         </View>
-        <Pressable style={styles.iconButton}>
-          <Ionicons name="search" size={24} color={colors.primary} />
-        </Pressable>
+        <View style={styles.headerRight}>
+          <Pressable style={styles.iconButton} onPress={() => router.push("/notifications")}>
+            <Ionicons name="notifications-outline" size={24} color={colors.primary} />
+          </Pressable>
+          <Pressable style={styles.iconButton}>
+            <Ionicons name="search" size={24} color={colors.primary} />
+          </Pressable>
+        </View>
       </View>
 
       {/* Search & Filters Sticky Header */}
@@ -148,14 +155,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 10 : 20,
-    paddingBottom: 10,
+        paddingBottom: 10,
     backgroundColor: colors.surface,
   },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   avatarPlaceholder: {
     width: 32,

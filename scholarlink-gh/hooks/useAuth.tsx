@@ -1,6 +1,7 @@
 import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from 'react';
 
 import { authService, RegisterPayload } from '../services/authService';
+import { authEvents } from '../services/authEvents';
 import { tokenStore } from '../services/tokenStore';
 import { AuthResponse } from '../types/api';
 
@@ -21,10 +22,31 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [isBootstrapping, setBootstrapping] = useState(true);
 
   useEffect(() => {
-    tokenStore.getAccessToken().then((token) => {
-      setBootstrapping(false);
-      if (!token) setUser(null);
+    tokenStore.getAccessToken().then(async (token) => {
+      if (!token) {
+        setUser(null);
+        setBootstrapping(false);
+        return;
+      }
+
+      try {
+        const response = await authService.getMe();
+        setUser({ email: response.email, username: response.username, role: response.role });
+      } catch (error) {
+        // If /me fails (e.g. token expired and refresh failed), fall back to null
+        setUser(null);
+      } finally {
+        setBootstrapping(false);
+      }
     });
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = authEvents.onSignOut(async () => {
+      await tokenStore.clearTokens();
+      setUser(null);
+    });
+    return unsubscribe;
   }, []);
 
   const value = useMemo<AuthContextValue>(
@@ -40,7 +62,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
         await authService.register(payload);
       },
       async verifyOtp(email, otpCode) {
-        await authService.verifyOtp(email, otpCode);
+        const response = await authService.verifyOtp(email, otpCode);
+        await tokenStore.setTokens(response.accessToken, response.refreshToken);
+        setUser({ email: response.email, username: response.username, role: response.role });
       },
       async resendOtp(email) {
         await authService.resendOtp(email);

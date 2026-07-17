@@ -1,4 +1,4 @@
-import { router } from "expo-router";
+import { router, Stack } from "expo-router";
 import {
   StyleSheet,
   Text,
@@ -31,18 +31,17 @@ export default function ProfileSettingsScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      {/* Header */}
-      <View style={styles.header}>
+    <View style={[styles.container, { paddingBottom: insets.bottom }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <View style={styles.headerLeft}>
           <Pressable onPress={() => router.back()} style={styles.iconButton}>
             <Ionicons name="arrow-back" size={24} color={colors.primary} />
           </Pressable>
           <Text style={styles.headerTitle}>Profile</Text>
         </View>
-        <Pressable style={styles.iconButton} onPress={() => router.push('/notifications')}>
-          <Ionicons name="notifications-outline" size={24} color={colors.primary} />
-        </Pressable>
+        {/* Placeholder for balance, if needed. Or just leave empty. */}
+        <View style={{ width: 40 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -55,7 +54,7 @@ export default function ProfileSettingsScreen() {
             </Pressable>
           </View>
           
-          <Text style={styles.userName}>{user?.username || user?.email || "Student"}</Text>
+          <Text style={styles.userName}>{user?.username || "Student"}</Text>
           <View style={styles.locationContainer}>
             <Ionicons name="location" size={16} color={colors.muted} />
             <Text style={styles.locationText}>Location not set</Text>
@@ -163,7 +162,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    height: 56,
+    minHeight: 56,
     backgroundColor: colors.surface,
   },
   headerLeft: {

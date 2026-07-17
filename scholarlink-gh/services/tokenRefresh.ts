@@ -14,20 +14,32 @@ const refreshClient = axios.create({
   },
 });
 
+let refreshPromise: Promise<string> | null = null;
+
 export async function refreshAccessToken(): Promise<string> {
-  const refreshToken = await tokenStore.getRefreshToken();
-  if (!refreshToken) {
-    await tokenStore.clearTokens();
-    throw new Error('No refresh token available');
+  if (refreshPromise) {
+    return refreshPromise;
   }
 
-  try {
-    const response = await refreshClient.post<AuthResponse>('/api/v1/auth/refresh', { refreshToken });
-    await tokenStore.setTokens(response.data.accessToken, response.data.refreshToken);
-    return response.data.accessToken;
-  } catch (error: any) {
-    await tokenStore.clearTokens();
-    const message = error.response?.data?.message || error.message || 'Something went wrong';
-    throw new Error(message);
-  }
+  refreshPromise = (async () => {
+    const refreshToken = await tokenStore.getRefreshToken();
+    if (!refreshToken) {
+      await tokenStore.clearTokens();
+      throw new Error('No refresh token available');
+    }
+
+    try {
+      const response = await refreshClient.post<AuthResponse>('/api/v1/auth/refresh', { refreshToken });
+      await tokenStore.setTokens(response.data.accessToken, response.data.refreshToken);
+      return response.data.accessToken;
+    } catch (error: any) {
+      await tokenStore.clearTokens();
+      const message = error.response?.data?.message || error.message || 'Something went wrong';
+      throw new Error(message);
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
 }

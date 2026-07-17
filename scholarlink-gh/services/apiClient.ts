@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 
 import { tokenStore } from './tokenStore';
 import { refreshAccessToken } from './tokenRefresh';
+import { authEvents } from './authEvents';
 
 const extra = Constants.expoConfig?.extra as { apiUrl?: string } | undefined;
 
@@ -43,8 +44,7 @@ apiClient.interceptors.response.use(
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return apiClient(originalRequest);
       } catch (refreshError) {
-        await tokenStore.clearTokens();
-        router.replace('/(auth)/login');
+        authEvents.emitSignOut();
         throw refreshError;
       }
     }

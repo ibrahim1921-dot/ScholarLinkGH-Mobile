@@ -22,14 +22,13 @@ export default function HomeScreen() {
   const { user, signOut } = useAuth();
   const insets = useSafeAreaInsets();
 
-  // Extract first name from username (take first word), fall back to email or "Student"
+  // Extract first name from username (take first word), fall back to "Student"
   const displayName = (() => {
     const username = user?.username;
     if (username) {
-      const firstName = username.split(' ')[0].split('@')[0];
-      return firstName;
+      return username.split(' ')[0];
     }
-    return user?.email?.split('@')[0] ?? 'Student';
+    return 'Student';
   })();
   const [matches, setMatches] = useState<ScholarshipMatch[]>([]);
   const [trackers, setTrackers] = useState<ApplicationTracker[]>([]);

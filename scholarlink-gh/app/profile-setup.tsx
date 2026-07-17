@@ -1,9 +1,10 @@
-import { router } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { Alert, StyleSheet, Text, View, Image, ScrollView, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useQueryClient } from '@tanstack/react-query';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppTextInput } from '../components/AppTextInput';
 import { colors } from '../constants/colors';
@@ -12,6 +13,7 @@ import { profileService } from '../services/profileService';
 
 export default function ProfileSetupScreen() {
   const queryClient = useQueryClient();
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const [institution, setInstitution] = useState('');
   const [fieldOfStudy, setFieldOfStudy] = useState('');
@@ -59,13 +61,14 @@ export default function ProfileSetupScreen() {
 
   return (
     <View style={styles.container}>
+      <Stack.Screen options={{ headerShown: false }} />
       {fetching && (
         <View style={[StyleSheet.absoluteFill, { zIndex: 100, backgroundColor: 'rgba(255,255,255,0.7)', justifyContent: 'center', alignItems: 'center' }]}>
           <Text style={{ fontFamily: 'PlusJakartaSans_600SemiBold', color: colors.primary }}>Loading...</Text>
         </View>
       )}
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <View style={styles.headerLeft}>
           <Ionicons name="school" size={24} color={colors.primary} />
           <Text style={styles.headerTitle}>ScholarLink GH</Text>
@@ -171,7 +174,7 @@ export default function ProfileSetupScreen() {
         </ScrollView>
 
         {/* Bottom Navigation Shell */}
-        <View style={styles.bottomNav}>
+        <View style={[styles.bottomNav, { paddingBottom: insets.bottom + 16 }]}>
           <Pressable style={styles.backButton} onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={20} color={colors.primary} />
             <Text style={styles.backButtonText}>Back</Text>
@@ -196,7 +199,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    height: 64,
+    minHeight: 64,
     backgroundColor: colors.surface,
     zIndex: 50,
   },

@@ -1,4 +1,4 @@
-import { router } from "expo-router";
+import { router, Stack } from "expo-router";
 import { useState, useEffect } from "react";
 import {
   StyleSheet,
@@ -100,14 +100,15 @@ export default function ProfileSetupStep2Screen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+    <View style={styles.container}>
+      <Stack.Screen options={{ headerShown: false }} />
       {fetching && (
         <View style={[StyleSheet.absoluteFill, { zIndex: 100, backgroundColor: 'rgba(255,255,255,0.7)', justifyContent: 'center', alignItems: 'center' }]}>
           <Text style={{ fontFamily: 'PlusJakartaSans_600SemiBold', color: colors.primary }}>Loading...</Text>
         </View>
       )}
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <View style={styles.headerLeft}>
           <Pressable onPress={() => router.back()} style={styles.closeButton}>
             <Ionicons name="close" size={24} color={colors.primary} />
@@ -245,7 +246,7 @@ export default function ProfileSetupStep2Screen() {
       </ScrollView>
 
       {/* Footer Nav */}
-      <View style={styles.footerNav}>
+      <View style={[styles.footerNav, { paddingBottom: insets.bottom + 16 }]}>
         <Pressable style={styles.navButtonSecondary} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={20} color={colors.primary} />
           <Text style={styles.navButtonSecondaryText}>Back</Text>
@@ -274,7 +275,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    height: 56,
+    minHeight: 56,
     backgroundColor: colors.surface,
   },
   headerLeft: {

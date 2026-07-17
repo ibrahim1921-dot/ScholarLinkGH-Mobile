@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FlatList, StyleSheet, Text, View, Pressable, ScrollView, Platform, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -17,6 +18,7 @@ import { ApplicationTracker } from "../../types/api";
 type TabKey = 'in-progress' | 'submitted' | 'interview' | 'awarded';
 
 export default function ApplicationsScreen() {
+  const insets = useSafeAreaInsets();
   const [trackers, setTrackers] = useState<ApplicationTracker[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -75,7 +77,7 @@ export default function ApplicationsScreen() {
   return (
     <View style={styles.container}>
       {/* Top App Bar */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <View style={styles.headerLeft}>
           <Ionicons name="menu" size={24} color={colors.primary} style={{ marginRight: 8 }} />
           <Text style={styles.headerTitle}>Scholarship Tracker</Text>
@@ -259,8 +261,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === "ios" ? 10 : 20,
-    paddingBottom: 10,
+        paddingBottom: 10,
     backgroundColor: "rgba(249, 249, 254, 0.85)", // glass-header effect
     zIndex: 40,
     borderBottomWidth: 1,

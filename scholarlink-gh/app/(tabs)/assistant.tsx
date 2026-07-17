@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Alert, StyleSheet, Text, View, TextInput, ScrollView, Pressable, Platform, KeyboardAvoidingView, ActivityIndicator, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -16,12 +17,13 @@ interface Message {
 }
 
 export default function AssistantScreen() {
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
       sender: 'ai',
-      text: `Hello ${user?.username || 'there'}! I'm your scholarship coach. I can help you find Ghanaian scholarship opportunities or review your application essays. How can I help you today?`,
+      text: `Hello ${user?.username?.split(' ')[0] || 'there'}! I'm your scholarship coach. I can help you find Ghanaian scholarship opportunities or review your application essays. How can I help you today?`,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);
@@ -116,7 +118,7 @@ export default function AssistantScreen() {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
     >
       {/* Top App Bar */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <View style={styles.headerLeft}>
           <Pressable style={styles.backBtn}>
             <Ionicons name="arrow-back" size={24} color={colors.primary} />
@@ -230,8 +232,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 10 : 20,
-    paddingBottom: 10,
+        paddingBottom: 10,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(195, 198, 209, 0.3)',

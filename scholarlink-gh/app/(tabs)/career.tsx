@@ -1,4 +1,6 @@
+import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Alert, FlatList, Linking, StyleSheet, Text, View, Pressable, TextInput, ScrollView, Platform, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -12,6 +14,7 @@ import { JobListing } from '../../types/api';
 import { useSavedScholarships, useToggleSaveScholarship } from '../../hooks/useScholarship';
 
 export default function CareerScreen() {
+  const insets = useSafeAreaInsets();
   const [jobs, setJobs] = useState<JobListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -80,12 +83,17 @@ export default function CareerScreen() {
   return (
     <View style={styles.container}>
       {/* Top App Bar */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <View style={styles.headerLeft}>
           <Ionicons name="menu" size={24} color={colors.primary} style={{ marginRight: 8 }} />
           <Text style={styles.headerTitle}>Jobs & Internships</Text>
         </View>
-        <UserAvatar size={32} style={styles.avatar} />
+        <View style={styles.headerRight}>
+          <Pressable style={styles.iconBtn} onPress={() => router.push("/notifications")}>
+            <Ionicons name="notifications-outline" size={24} color={colors.primary} />
+          </Pressable>
+          <UserAvatar size={32} style={styles.avatar} />
+        </View>
       </View>
 
       <FlatList
@@ -221,8 +229,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 10 : 20,
-    paddingBottom: 10,
+        paddingBottom: 10,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(195, 198, 209, 0.3)',
@@ -231,6 +238,18 @@ const styles = StyleSheet.create({
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  iconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerTitle: {
     fontFamily: 'PlusJakartaSans_700Bold',

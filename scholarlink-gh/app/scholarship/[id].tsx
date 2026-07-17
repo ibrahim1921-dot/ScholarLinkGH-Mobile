@@ -1,4 +1,5 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, router, Stack } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Linking, StyleSheet, Text, View, ScrollView, Pressable, Platform, Share } from 'react-native';
@@ -11,6 +12,7 @@ import { trackerService } from '../../services/trackerService';
 import { useScholarshipDetail, useScholarshipEligibility, useSavedScholarships, useToggleSaveScholarship } from '../../hooks/useScholarship';
 
 export default function ScholarshipDetailScreen() {
+  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const scholarshipId = Number(id);
 
@@ -45,10 +47,10 @@ export default function ScholarshipDetailScreen() {
   if (error || !scholarship) return <Screen scroll={false}><ErrorState message={error ?? 'Not found'} /></Screen>;
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <Pressable onPress={() => router.back()} style={styles.iconBtn}>
           <Ionicons name="arrow-back" size={24} color={colors.primary} />
         </Pressable>
@@ -203,7 +205,7 @@ export default function ScholarshipDetailScreen() {
           <Ionicons name="open-outline" size={20} color="#ffffff" />
         </Pressable>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -217,8 +219,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 10 : 20,
-    paddingBottom: 10,
+        paddingBottom: 10,
     backgroundColor: colors.surface,
     zIndex: 10,
   },

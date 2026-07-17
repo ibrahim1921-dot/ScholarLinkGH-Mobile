@@ -29,10 +29,8 @@ export function UserAvatar({ size = 40, imageUrl, style }: UserAvatarProps) {
     );
   }
 
-  const nameToUse = user?.username || user?.email || '?';
-  // If username is just an email, use the part before @
-  const cleanName = nameToUse.includes('@') ? nameToUse.split('@')[0] : nameToUse;
-  const parts = cleanName.split(/[\s._-]/).filter(Boolean);
+  const nameToUse = user?.username || '?';
+  const parts = nameToUse.split(/[\s._-]/).filter(Boolean);
   
   let initials = '?';
   if (parts.length >= 2) {
@@ -42,7 +40,7 @@ export function UserAvatar({ size = 40, imageUrl, style }: UserAvatarProps) {
   }
 
   // Consistent color based on name
-  const charCodeSum = cleanName.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  const charCodeSum = nameToUse.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
   const bgColor = AVATAR_COLORS[charCodeSum % AVATAR_COLORS.length];
 
   return (

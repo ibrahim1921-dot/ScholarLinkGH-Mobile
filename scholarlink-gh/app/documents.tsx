@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Alert, FlatList, StyleSheet, Text, View, Pressable, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Link, router, Stack } from "expo-router";
 
 import { AppButton } from '../components/AppButton';
 import { Badge } from '../components/Badge';
@@ -14,6 +15,7 @@ import { documentService } from '../services/documentService';
 import { DisclaimerStatus, DocumentUpload } from '../types/api';
 
 export default function DocumentsScreen() {
+  const insets = useSafeAreaInsets();
   const [docs, setDocs] = useState<DocumentUpload[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -113,8 +115,9 @@ export default function DocumentsScreen() {
 
   return (
     <View style={styles.container}>
+      <Stack.Screen options={{ headerShown: false }} />
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <Pressable style={styles.iconButton} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color={colors.primary} />
         </Pressable>
@@ -236,7 +239,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    height: 56,
+    minHeight: 56,
     backgroundColor: colors.surface,
   },
   headerTitle: {

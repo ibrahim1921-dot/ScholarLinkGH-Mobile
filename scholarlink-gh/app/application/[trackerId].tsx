@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, router, Stack } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { Alert, StyleSheet, Text, View, ScrollView, Pressable, Platform, TextInput } from 'react-native';
@@ -21,6 +22,7 @@ const statusDisplayNames: Record<ApplicationStatus, string> = {
 };
 
 export default function ApplicationDetailScreen() {
+  const insets = useSafeAreaInsets();
   const { trackerId } = useLocalSearchParams<{ trackerId: string }>();
   const id = Number(trackerId);
 
@@ -77,10 +79,10 @@ export default function ApplicationDetailScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <Pressable onPress={() => router.back()} style={styles.iconBtn}>
           <Ionicons name="arrow-back" size={24} color={colors.primary} />
         </Pressable>
@@ -209,7 +211,7 @@ export default function ApplicationDetailScreen() {
           </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -223,8 +225,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 10 : 20,
-    paddingBottom: 10,
+        paddingBottom: 10,
     backgroundColor: colors.surface,
     zIndex: 10,
   },
