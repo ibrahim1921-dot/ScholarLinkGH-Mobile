@@ -33,6 +33,24 @@ export default function ProfileSummaryScreen() {
     loadProfile();
   }, []);
 
+  const formatLanguages = (langStr?: string | null) => {
+    if (!langStr) return '';
+    try {
+      const parsed = JSON.parse(langStr);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.map(l => `${l.language} (${l.level})`).join(', ');
+      }
+    } catch (e) {
+      if (langStr.includes(':')) {
+        return langStr.split(',').map(part => {
+          const [lang, lvl] = part.split(':');
+          return `${lang ? lang.trim() : ''} (${lvl ? lvl.trim() : 'Fluent'})`;
+        }).filter(s => !s.startsWith(' (')).join(', ');
+      }
+    }
+    return '';
+  };
+
   const renderField = (label: string, value?: string | number | boolean | null) => {
     const displayValue = value === null || value === undefined || value === '' ? 'Not set' : value.toString();
     return (
@@ -86,9 +104,11 @@ export default function ProfileSummaryScreen() {
                 </Pressable>
               </View>
               <View style={styles.cardBody}>
+                {renderField('Education Level', profile?.educationLevel?.replace('_', ' '))}
                 {renderField('Institution', profile?.institution)}
                 {renderField('Field of Study', profile?.fieldOfStudy)}
                 {renderField('Cumulative GPA', profile?.gpa)}
+                {renderField('Graduation Year', profile?.graduationYear)}
               </View>
             </View>
 
@@ -103,7 +123,8 @@ export default function ProfileSummaryScreen() {
               </View>
               <View style={styles.cardBody}>
                 {renderField('Country Preference', profile?.countryPreference)}
-                {renderField('Financial Need', profile?.financialNeed ? 'High/Medium' : 'Low')}
+                {renderField('Intended Start Date', profile?.intendedStartDate)}
+                {renderField('Financial Need', profile?.financialNeed)}
               </View>
             </View>
 
@@ -117,9 +138,25 @@ export default function ProfileSummaryScreen() {
                 </Pressable>
               </View>
               <View style={styles.cardBody}>
-                {renderField('Language Proficiency', profile?.languageProficiency)}
+                {renderField('Language Proficiency', formatLanguages(profile?.languageProficiency))}
+                {renderField('Standardized Tests', profile?.standardizedTests)}
+                {renderField('Personal Bio', profile?.bio)}
+                {renderField('Achievements', profile?.achievements)}
               </View>
             </View>
+
+            {/* Section 4: AI Profile Suggestions (Read-Only) */}
+            {profile?.profileImprovementSuggestions ? (
+              <View style={[styles.card, styles.suggestionsCard]}>
+                <View style={[styles.cardHeader, styles.suggestionsHeader]}>
+                  <Text style={[styles.cardTitle, styles.suggestionsTitle]}>AI Profile Insights</Text>
+                  <Ionicons name="sparkles" size={16} color={colors.primary} />
+                </View>
+                <View style={styles.cardBody}>
+                  <Text style={styles.suggestionsText}>{profile.profileImprovementSuggestions}</Text>
+                </View>
+              </View>
+            ) : null}
           </View>
         )}
       </ScrollView>
@@ -284,5 +321,22 @@ const styles = StyleSheet.create({
     fontFamily: "BeVietnamPro_600SemiBold",
     fontSize: 16,
     color: "#ffffff",
+  },
+  suggestionsCard: {
+    borderColor: "rgba(213, 227, 255, 0.8)",
+    backgroundColor: "#f5f8ff",
+  },
+  suggestionsHeader: {
+    backgroundColor: "#d5e3ff",
+    borderBottomColor: "rgba(0, 51, 102, 0.1)",
+  },
+  suggestionsTitle: {
+    color: colors.primary,
+  },
+  suggestionsText: {
+    fontFamily: "BeVietnamPro_400Regular",
+    fontSize: 14,
+    color: colors.ink,
+    lineHeight: 22,
   },
 });

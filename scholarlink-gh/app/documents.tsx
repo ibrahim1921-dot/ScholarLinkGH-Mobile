@@ -1,42 +1,79 @@
-import { useEffect, useState } from 'react';
-import { Alert, FlatList, StyleSheet, Text, View, Pressable, ScrollView, TouchableOpacity } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Alert, StyleSheet, Text, View, Pressable, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Link, router, Stack } from "expo-router";
+import { router, Stack, useFocusEffect } from "expo-router";
 
 import { AppButton } from '../components/AppButton';
-import { Badge } from '../components/Badge';
 import { Screen } from '../components/Screen';
 import { SectionHeader } from '../components/SectionHeader';
 import { EmptyState, ErrorState, LoadingState } from '../components/StateView';
 import { colors } from '../constants/colors';
 import { documentTypes } from '../constants/options';
 import { documentService } from '../services/documentService';
-import { DisclaimerStatus, DocumentUpload } from '../types/api';
+import { DocumentUpload } from '../types/api';
+import { useDisclaimer } from '../hooks/useDisclaimer';
+import { DocumentCard } from '../components/documents/DocumentCard';
 
 export default function DocumentsScreen() {
   const insets = useSafeAreaInsets();
   const [docs, setDocs] = useState<DocumentUpload[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [disclaimer, setDisclaimer] = useState<DisclaimerStatus | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [activeTab, setActiveTab] = useState('Transcript');
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [selectedDocType, setSelectedDocType] = useState<string>(documentTypes[0]);
+  const [refreshing, setRefreshing] = useState(false);
 
+  const { isAccepted, isFetchingStatus, isAccepting, acceptDisclaimer, refreshStatus } = useDisclaimer();
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchAll();
+    }, [])
+  );
+
+  // Poll PENDING documents
   useEffect(() => {
-    fetchAll();
-  }, []);
+    const pendingDocs = docs.filter((d) => d.verification_status === 'PENDING');
+    if (pendingDocs.length === 0) return;
+
+    const interval = setInterval(async () => {
+      let updatedAny = false;
+      const updatedDocs = [...docs];
+      
+      for (let i = 0; i < updatedDocs.length; i++) {
+        const doc = updatedDocs[i];
+        if (doc.verification_status === 'PENDING') {
+          try {
+            const updatedDoc = await documentService.getDocument(doc.id);
+            if (updatedDoc.verification_status !== 'PENDING') {
+              updatedDocs[i] = updatedDoc;
+              updatedAny = true;
+            }
+          } catch (e) {
+            // ignore error while polling
+          }
+        }
+      }
+
+      if (updatedAny) {
+        setDocs(updatedDocs);
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [docs]);
 
   const fetchAll = async () => {
     setLoading(true);
     setError(null);
     try {
-      const [documents, disc] = await Promise.all([
+      const [documents] = await Promise.all([
         documentService.getDocuments(),
-        documentService.getDisclaimerStatus(),
+        refreshStatus(),
       ]);
       setDocs(documents);
-      setDisclaimer(disc);
     } catch (e: any) {
       setError(e?.message ?? 'Failed to load documents');
     } finally {
@@ -44,12 +81,18 @@ export default function DocumentsScreen() {
     }
   };
 
-  const acceptDisclaimer = async () => {
+  const onRefresh = async () => {
+    setRefreshing(true);
     try {
-      await documentService.acceptDisclaimer();
-      setDisclaimer((prev) => (prev ? { ...prev, disclaimer_accepted: true } : prev));
+      const [documents] = await Promise.all([
+        documentService.getDocuments(),
+        refreshStatus(),
+      ]);
+      setDocs(documents);
     } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'Could not accept disclaimer');
+      // errors handled by error state if needed, or silent for refresh
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -63,52 +106,61 @@ export default function DocumentsScreen() {
       return;
     }
 
-    const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
+    const result = await DocumentPicker.getDocumentAsync({ 
+      type: ['application/pdf', 'image/jpeg', 'image/png', 'image/tiff'], 
+      copyToCacheDirectory: true 
+    });
     if (result.canceled || !result.assets?.length) return;
     const file = result.assets[0];
 
-    Alert.alert(
-      'Document Type',
-      'Select the type of document',
-      documentTypes.map((dt) => ({
-        text: dt,
+    // Client-side validation: Max 10MB
+    if (file.size && file.size > 10 * 1024 * 1024) {
+      Alert.alert('File Too Large', 'The selected file exceeds the 10MB limit. Please choose a smaller file.');
+      return;
+    }
+
+    setUploading(true);
+    setUploadProgress(0);
+    try {
+      const uploaded = await documentService.uploadDocument(file, selectedDocType, (progressEvent) => {
+        if (progressEvent.total) {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          setUploadProgress(percentCompleted);
+        }
+      });
+      setDocs((prev) => [uploaded, ...prev]);
+    } catch (e: any) {
+      Alert.alert('Upload Failed', e?.message ?? 'Could not upload');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const deleteDocument = (id: number) => {
+    Alert.alert('Delete Document', 'Are you sure you want to delete this document?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
         onPress: async () => {
-          setUploading(true);
           try {
-            const uploaded = await documentService.uploadDocument(file, dt);
-            setDocs((prev) => [uploaded, ...prev]);
+            await documentService.deleteDocument(id);
+            setDocs((prev) => prev.filter((d) => d.id !== id));
           } catch (e: any) {
-            Alert.alert('Upload Failed', e?.message ?? 'Could not upload');
-          } finally {
-            setUploading(false);
+            Alert.alert('Delete Failed', e?.message ?? 'Could not delete document');
           }
         },
-      })),
-    );
+      },
+    ]);
   };
-
-  const getStatusIcon = (status: string) => {
-    if (status === 'VERIFIED') return 'checkmark-circle';
-    if (status === 'SUSPICIOUS' || status === 'REJECTED') return 'warning';
-    return 'time';
-  };
-
-  const getStatusColors = (status: string) => {
-    if (status === 'VERIFIED') return { bg: '#a0f399', text: '#005312', icon: '#217128', border: '#1b6d24' };
-    if (status === 'SUSPICIOUS' || status === 'REJECTED') return { bg: '#ffdad6', text: '#93000a', icon: '#ba1a1a', border: '#ba1a1a' };
-    return { bg: '#ffdbca', text: '#723610', icon: '#d8885c', border: '#ffb690' };
-  };
-
-  const filteredDocs = docs.filter(doc => doc.document_type.toLowerCase() === activeTab.toLowerCase());
-
-  if (loading) return <Screen scroll={false}><LoadingState /></Screen>;
+  if (loading || isFetchingStatus) return <Screen scroll={false}><LoadingState /></Screen>;
   if (error) return <Screen scroll={false}><ErrorState message={error} onRetry={fetchAll} /></Screen>;
 
-  if (disclaimer && !disclaimer.disclaimer_accepted) {
+  if (!isAccepted) {
     return (
       <Screen>
         <SectionHeader title="Document Disclaimer" subtitle="By uploading documents, you agree that AI verification will be used to confirm document authenticity." />
-        <AppButton title="I understand and agree" onPress={acceptDisclaimer} />
+        <AppButton title={isAccepting ? "Accepting..." : "I understand and agree"} onPress={acceptDisclaimer} disabled={isAccepting} />
       </Screen>
     );
   }
@@ -121,13 +173,15 @@ export default function DocumentsScreen() {
         <Pressable style={styles.iconButton} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color={colors.primary} />
         </Pressable>
-        <Text style={styles.headerTitle}>Document Upload</Text>
-        <Pressable style={styles.iconButton}>
-          <Ionicons name="share-outline" size={24} color={colors.primary} />
-        </Pressable>
+        <Text style={styles.headerTitle}>Document Vault</Text>
+        <View style={styles.iconButton} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />}
+      >
         {/* Introduction */}
         <View style={styles.introBox}>
           <MaterialIcons name="verified-user" size={24} color="#003366" />
@@ -140,13 +194,13 @@ export default function DocumentsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Select Document Category</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsContainer}>
-            {['Transcript', 'CV', 'Statement'].map((tab) => (
+            {documentTypes.map((tab) => (
               <Pressable 
                 key={tab} 
-                style={[styles.tabBtn, activeTab === tab ? styles.tabBtnActive : styles.tabBtnInactive]}
-                onPress={() => setActiveTab(tab)}
+                style={[styles.tabBtn, selectedDocType === tab ? styles.tabBtnActive : styles.tabBtnInactive]}
+                onPress={() => setSelectedDocType(tab)}
               >
-                <Text style={[styles.tabBtnText, activeTab === tab ? styles.tabBtnTextActive : styles.tabBtnTextInactive]}>
+                <Text style={[styles.tabBtnText, selectedDocType === tab ? styles.tabBtnTextActive : styles.tabBtnTextInactive]}>
                   {tab}
                 </Text>
               </Pressable>
@@ -160,71 +214,28 @@ export default function DocumentsScreen() {
             <View style={styles.uploadIconContainer}>
               <Ionicons name={uploading ? "reload" : "cloud-upload"} size={32} color={colors.primary} />
             </View>
-            <Text style={styles.uploadTitle}>{uploading ? "Uploading..." : "Tap to upload files here"}</Text>
-            <Text style={styles.uploadSubtitle}>PDF, JPG, or PNG (Max 5MB)</Text>
+            <Text style={styles.uploadTitle}>{uploading ? `Uploading... ${uploadProgress}%` : "Tap to upload files here"}</Text>
+            <Text style={styles.uploadSubtitle}>PDF, JPG, or PNG (Max 10MB)</Text>
           </TouchableOpacity>
         </View>
 
         {/* Uploaded Documents List */}
         <View style={styles.section}>
           <View style={styles.listHeader}>
-            <Text style={styles.sectionTitle}>Recent Uploads</Text>
-            <Pressable>
-              <Text style={styles.viewAllText}>View All</Text>
-            </Pressable>
+            <Text style={styles.sectionTitle}>Documents</Text>
           </View>
 
-          {filteredDocs.length === 0 ? (
-            <EmptyState title={`No ${activeTab}s`} message={`Upload your first ${activeTab.toLowerCase()} to get started.`} />
+          {docs.length === 0 ? (
+            <EmptyState title="No documents found" message="Upload your first document to get started." />
           ) : (
             <View style={styles.docsList}>
-              {filteredDocs.map((item) => {
-                const statusColors = getStatusColors(item.verification_status);
-                
-                return (
-                  <View key={item.id} style={styles.docCard}>
-                    <View style={styles.docCardHeader}>
-                      <View style={styles.docInfo}>
-                        <View style={[styles.docIconBg, { backgroundColor: statusColors.bg }]}>
-                          <Ionicons name="checkmark-circle" size={16} color={statusColors.icon} />
-                        </View>
-                        <View style={styles.docTextInfo}>
-                          <Text style={styles.docFilename} numberOfLines={1}>{item.filename}</Text>
-                          <Text style={styles.docType}>{item.document_type}</Text>
-                        </View>
-                      </View>
-                      <View style={[styles.statusBadge, { backgroundColor: statusColors.bg }]}>
-                        <Ionicons name={getStatusIcon(item.verification_status)} size={12} color={statusColors.text} />
-                        <Text style={[styles.statusBadgeText, { color: statusColors.text }]}>
-                          {item.verification_status}
-                        </Text>
-                      </View>
-                    </View>
-
-                    {item.verification_notes ? (
-                      <View style={[styles.aiInsightBox, { borderLeftColor: statusColors.border }]}>
-                        <Ionicons name="checkmark-circle" size={16} color="#005312" style={{ marginRight: 4 }} />
-                        <Text style={[styles.aiInsightText, item.verification_status === 'SUSPICIOUS' && { color: statusColors.icon }]}>
-                          <Text style={{ fontWeight: '700' }}>AI Insight: </Text>
-                          {item.verification_notes}
-                        </Text>
-                      </View>
-                    ) : null}
-                  </View>
-                );
-              })}
+              {docs.map((item) => (
+                <DocumentCard key={item.id} item={item} onDelete={deleteDocument} />
+              ))}
             </View>
           )}
         </View>
       </ScrollView>
-
-      {/* Bottom Action Area */}
-      <View style={styles.bottomActionArea}>
-        <Pressable style={styles.submitButton}>
-          <Text style={styles.submitButtonText}>Submit for Verification</Text>
-          <Ionicons name="send" size={18} color="#ffffff" />
-        </Pressable>
-      </View>
     </View>
   );
 }
@@ -257,7 +268,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 16,
-    paddingBottom: 100, // Room for bottom action
+    paddingBottom: 40,
   },
   introBox: {
     flexDirection: 'row',
@@ -355,118 +366,5 @@ const styles = StyleSheet.create({
   },
   docsList: {
     gap: 16,
-  },
-  docCard: {
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    padding: 16,
-    gap: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  docCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  docInfo: {
-    flexDirection: 'row',
-    gap: 12,
-    flex: 1,
-    marginRight: 8,
-  },
-  docIconBg: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    opacity: 0.8,
-  },
-  docTextInfo: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  docFilename: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: 16,
-    color: colors.ink,
-    marginBottom: 2,
-  },
-  docType: {
-    fontFamily: 'BeVietnamPro_600SemiBold',
-    fontSize: 10,
-    color: colors.muted,
-    textTransform: 'uppercase',
-  },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
-  },
-  statusBadgeText: {
-    fontFamily: 'BeVietnamPro_600SemiBold',
-    fontSize: 10,
-    textTransform: 'capitalize',
-  },
-  aiInsightBox: {
-    backgroundColor: '#f4f3f8', // surface-container-low
-    padding: 8,
-    borderRadius: 8,
-    borderLeftWidth: 4,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-  },
-  aiInsightText: {
-    flex: 1,
-    fontFamily: 'BeVietnamPro_400Regular',
-    fontSize: 12,
-    color: colors.muted,
-    lineHeight: 18,
-  },
-  bottomActionArea: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 32, // extra padding for safe area
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 20,
-    elevation: 20,
-  },
-  submitButton: {
-    height: 48,
-    backgroundColor: colors.primary,
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  submitButtonText: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: 16,
-    color: '#ffffff',
   },
 });

@@ -8,6 +8,8 @@ export type ScholarshipFilters = {
   country?: string;
   field?: string;
   deadline?: string;
+  search?: string;
+  status?: string;
 };
 
 export const scholarshipService = {
@@ -66,6 +68,26 @@ export const scholarshipService = {
   async getSavedScholarships(): Promise<Scholarship[]> {
     try {
       const response = await apiClient.get<Scholarship[]>('/api/v1/scholarships/saved');
+      return response.data;
+    } catch (error: any) {
+      const message = error.response?.data?.message || error.message || 'Something went wrong';
+      throw new Error(message);
+    }
+  },
+
+  async getDistinctCountries(): Promise<string[]> {
+    try {
+      const response = await apiClient.get<string[]>('/api/v1/scholarships/countries');
+      return response.data;
+    } catch (error: any) {
+      const message = error.response?.data?.message || error.message || 'Something went wrong';
+      throw new Error(message);
+    }
+  },
+
+  async getDistinctFields(): Promise<string[]> {
+    try {
+      const response = await apiClient.get<string[]>('/api/v1/scholarships/fields');
       return response.data;
     } catch (error: any) {
       const message = error.response?.data?.message || error.message || 'Something went wrong';

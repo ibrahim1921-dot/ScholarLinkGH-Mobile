@@ -1,11 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect, Tabs } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors } from '../../constants/colors';
 import { useAuth } from '../../hooks/useAuth';
 
 export default function TabsLayout() {
   const { user, isBootstrapping } = useAuth();
+  const insets = useSafeAreaInsets();
 
   if (!isBootstrapping && !user) {
     return <Redirect href="/(auth)/login" />;
@@ -16,15 +18,30 @@ export default function TabsLayout() {
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.muted,
-        tabBarStyle: { borderTopColor: colors.border, height: 64, paddingBottom: 8, paddingTop: 8 },
+        tabBarInactiveTintColor: colors.iconMuted,
+        tabBarStyle: { 
+          position: 'absolute',
+          bottom: insets.bottom + 16,
+          marginHorizontal: 20,
+          backgroundColor: colors.surface,
+          borderRadius: 28,
+          height: 64, 
+          paddingBottom: 8, 
+          paddingTop: 8,
+          borderTopWidth: 0,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.06,
+          shadowRadius: 16,
+          elevation: 4,
+        },
         tabBarIcon: ({ color, size }) => {
           const icon = {
-            index: 'sparkles-outline',
+            index: 'home-outline',
             scholarships: 'school-outline',
-            applications: 'list-outline',
+            applications: 'document-text-outline',
             assistant: 'chatbubbles-outline',
-            career: 'briefcase-outline',
+            career: 'compass-outline',
           }[route.name] as keyof typeof Ionicons.glyphMap;
           return <Ionicons name={icon} color={color} size={size} />;
         },

@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { FlatList, StyleSheet, Text, View, Pressable, ScrollView, Platform, Image } from "react-native";
+import { FlatList, StyleSheet, Text, View, Pressable, ScrollView, Platform, Image, ImageBackground } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useTrackers } from "../../hooks/useTracker";
 
 import { Screen } from "../../components/Screen";
 import {
@@ -19,26 +20,9 @@ type TabKey = 'in-progress' | 'submitted' | 'interview' | 'awarded';
 
 export default function ApplicationsScreen() {
   const insets = useSafeAreaInsets();
-  const [trackers, setTrackers] = useState<ApplicationTracker[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>('in-progress');
-
-  useEffect(() => {
-    fetchTrackers();
-  }, []);
-
-  const fetchTrackers = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      setTrackers(await trackerService.getTrackers());
-    } catch (e: any) {
-      setError(e?.message ?? "Failed to load");
-    } finally {
-      setLoading(false);
-    }
-  };
+  
+  const { data: trackers = [], isLoading: loading, error, refetch: fetchTrackers } = useTrackers();
 
   const getFilteredTrackers = () => {
     return trackers.filter((t) => {
@@ -70,20 +54,25 @@ export default function ApplicationsScreen() {
   };
 
   if (loading && trackers.length === 0) return <Screen scroll={false}><LoadingState /></Screen>;
-  if (error && trackers.length === 0) return <Screen scroll={false}><ErrorState message={error} onRetry={fetchTrackers} /></Screen>;
+  if (error && trackers.length === 0) return <Screen scroll={false}><ErrorState message={(error as Error)?.message || "Failed to load"} onRetry={fetchTrackers} /></Screen>;
 
   const filtered = getFilteredTrackers();
 
   return (
     <View style={styles.container}>
       {/* Top App Bar */}
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+      <ImageBackground
+        source={require("../../assets/images/header-applications.jpg")}
+        style={[styles.header, { paddingTop: insets.top + 10 }]}
+        imageStyle={{ resizeMode: "cover" }}
+      >
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.primary, opacity: 0.65 }]} />
         <View style={styles.headerLeft}>
-          <Ionicons name="menu" size={24} color={colors.primary} style={{ marginRight: 8 }} />
-          <Text style={styles.headerTitle}>Scholarship Tracker</Text>
+          <Ionicons name="menu" size={24} color="#ffffff" style={{ marginRight: 8 }} />
+          <Text style={[styles.headerTitle, { color: '#ffffff' }]}>Scholarship Tracker</Text>
         </View>
-        <UserAvatar size={32} style={styles.avatar} />
-      </View>
+        <UserAvatar size={32} style={[styles.avatar, { borderColor: '#ffffff', borderWidth: 1 }]} />
+      </ImageBackground>
 
       {/* Tab Navigation */}
       <View style={styles.tabBarWrapper}>
@@ -317,7 +306,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 20,
-    paddingBottom: 100, // Room for bottom tabs
+    paddingBottom: 120, // Room for bottom tabs
   },
   card: {
     backgroundColor: "#ffffff",

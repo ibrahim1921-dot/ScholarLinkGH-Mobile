@@ -9,6 +9,8 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  TextInput,
+  TouchableOpacity,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -16,24 +18,97 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors } from "../constants/colors";
 import { profileService } from "../services/profileService";
 import { useQueryClient } from "@tanstack/react-query";
+import { documentService } from "../services/documentService";
+import { DocumentUpload } from "../types/api";
+import { documentTypes } from "../constants/options";
+import { useDisclaimer } from "../hooks/useDisclaimer";
+import { DisclaimerModal } from "../components/DisclaimerModal";
+import { DocumentCard } from "../components/documents/DocumentCard";
 
 const TESTS = ["WASSCE", "IELTS", "SAT", "GRE"];
+
+type LanguageEntry = { language: string, level: string };
 
 export default function ProfileSetupStep3Screen() {
   const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
   const [selectedTests, setSelectedTests] = useState<string[]>(["IELTS"]);
-  const [languageLevel, setLanguageLevel] = useState("Fluent");
+  const [languages, setLanguages] = useState<LanguageEntry[]>([{ language: 'English', level: 'Fluent' }]);
+  const [bio, setBio] = useState("");
+  const [achievements, setAchievements] = useState("");
   const [fetching, setFetching] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [selectedDocType, setSelectedDocType] = useState<string>(documentTypes[0]);
+  const [docs, setDocs] = useState<DocumentUpload[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  const { isAccepted, isAccepting, acceptDisclaimer, refreshStatus } = useDisclaimer();
+  const [showDisclaimerModal, setShowDisclaimerModal] = useState(false);
+
+  // Poll PENDING documents
+  useEffect(() => {
+    const pendingDocs = docs.filter((d) => d.verification_status === 'PENDING');
+    if (pendingDocs.length === 0) return;
+
+    const interval = setInterval(async () => {
+      let updatedAny = false;
+      const updatedDocs = [...docs];
+      
+      for (let i = 0; i < updatedDocs.length; i++) {
+        const doc = updatedDocs[i];
+        if (doc.verification_status === 'PENDING') {
+          try {
+            const updatedDoc = await documentService.getDocument(doc.id);
+            if (updatedDoc.verification_status !== 'PENDING') {
+              updatedDocs[i] = updatedDoc;
+              updatedAny = true;
+            }
+          } catch (e) {
+            // ignore
+          }
+        }
+      }
+
+      if (updatedAny) {
+        setDocs(updatedDocs);
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [docs]);
 
   useEffect(() => {
     const loadProfile = async () => {
       try {
         const profile = await profileService.getProfile();
         if (profile.languageProficiency) {
-          const eng = profile.languageProficiency.split(',').find(l => l.startsWith('English:'));
-          if (eng) setLanguageLevel(eng.split(':')[1]);
+          try {
+            const parsed = JSON.parse(profile.languageProficiency);
+            if (Array.isArray(parsed)) {
+              setLanguages(parsed);
+            } else {
+              setLanguages([]);
+            }
+          } catch (e) {
+            if (profile.languageProficiency.includes(':')) {
+              const legacyParts = profile.languageProficiency.split(',');
+              const mapped = legacyParts.map(part => {
+                const [lang, lvl] = part.split(':');
+                return { language: lang ? lang.trim() : '', level: lvl ? lvl.trim() : 'Fluent' };
+              }).filter(l => l.language !== '');
+              setLanguages(mapped.length > 0 ? mapped : []);
+            } else {
+              setLanguages([]);
+            }
+          }
+        } else {
+          setLanguages([]);
+        }
+        if (profile.bio) setBio(profile.bio);
+        if (profile.achievements) setAchievements(profile.achievements);
+        if (profile.standardizedTests) {
+          setSelectedTests(profile.standardizedTests.split(','));
         }
       } catch (e) {
         // Ignore if profile doesn't exist
@@ -41,7 +116,19 @@ export default function ProfileSetupStep3Screen() {
         setFetching(false);
       }
     };
+
+    const loadDocs = async () => {
+      try {
+        const documents = await documentService.getDocuments();
+        setDocs(documents);
+      } catch (e) {
+        // ignore
+      }
+    };
+
     loadProfile();
+    loadDocs();
+    refreshStatus();
   }, []);
 
   const toggleTest = (test: string) => {
@@ -52,11 +139,104 @@ export default function ProfileSetupStep3Screen() {
     }
   };
 
+  const addLanguage = () => {
+    setLanguages([...languages, { language: '', level: 'Basic' }]);
+  };
+
+  const removeLanguage = (index: number) => {
+    setLanguages(languages.filter((_, i) => i !== index));
+  };
+
+  const updateLanguageName = (index: number, name: string) => {
+    const newLangs = [...languages];
+    newLangs[index].language = name;
+    setLanguages(newLangs);
+  };
+
+  const updateLanguageLevel = (index: number, level: string) => {
+    const newLangs = [...languages];
+    newLangs[index].level = level;
+    setLanguages(newLangs);
+  };
+
+  const handleLevelSelect = (index: number) => {
+    Alert.alert("Select Proficiency", "Choose your language proficiency level:", [
+      { text: "Basic", onPress: () => updateLanguageLevel(index, "Basic") },
+      { text: "Intermediate", onPress: () => updateLanguageLevel(index, "Intermediate") },
+      { text: "Fluent", onPress: () => updateLanguageLevel(index, "Fluent") },
+      { text: "Cancel", style: "cancel" }
+    ]);
+  };
+
+  const upload = async () => {
+    if (!isAccepted) {
+      setShowDisclaimerModal(true);
+      return;
+    }
+
+    let DocumentPicker: typeof import('expo-document-picker');
+    try {
+      DocumentPicker = require('expo-document-picker');
+    } catch {
+      Alert.alert('Not Available', 'Document picker is not installed.');
+      return;
+    }
+
+    const result = await DocumentPicker.getDocumentAsync({ 
+      type: ['application/pdf', 'image/jpeg', 'image/png', 'image/tiff'], 
+      copyToCacheDirectory: true 
+    });
+    if (result.canceled || !result.assets?.length) return;
+    const file = result.assets[0];
+
+    if (file.size && file.size > 10 * 1024 * 1024) {
+      Alert.alert('File Too Large', 'The selected file exceeds the 10MB limit. Please choose a smaller file.');
+      return;
+    }
+
+    setUploading(true);
+    setUploadProgress(0);
+    try {
+      const uploaded = await documentService.uploadDocument(file, selectedDocType, (progressEvent) => {
+        if (progressEvent.total) {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          setUploadProgress(percentCompleted);
+        }
+      });
+      setDocs((prev) => [uploaded, ...prev]);
+    } catch (e: any) {
+      Alert.alert('Upload Failed', e?.message ?? 'Could not upload');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const deleteDocument = (id: number) => {
+    Alert.alert('Delete Document', 'Are you sure you want to delete this document?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await documentService.deleteDocument(id);
+            setDocs((prev) => prev.filter((d) => d.id !== id));
+          } catch (e: any) {
+            Alert.alert('Delete Failed', e?.message ?? 'Could not delete document');
+          }
+        },
+      },
+    ]);
+  };
+
   const handleFinish = async () => {
     setLoading(true);
     try {
       await profileService.updateProfile({
-        language_proficiency: `English:${languageLevel}`,
+        language_proficiency: JSON.stringify(languages),
+        standardized_tests: selectedTests.join(','),
+        bio,
+        achievements,
       });
       queryClient.invalidateQueries({ queryKey: ['profileCompleteness'] });
       router.replace("/(tabs)");
@@ -128,37 +308,72 @@ export default function ProfileSetupStep3Screen() {
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>Language Proficiency</Text>
             
-            <View style={styles.languageCard}>
-              <View style={styles.languageInfo}>
-                <Ionicons name="language-outline" size={24} color={colors.muted} />
-                <View style={styles.languageTextContainer}>
-                  <Text style={styles.languageName}>English</Text>
-                  <Text style={styles.languageLevel}>Primary Language</Text>
+            {languages.map((lang, index) => (
+              <View key={index} style={styles.languageCard}>
+                <View style={styles.languageInfo}>
+                  <Ionicons name="globe-outline" size={24} color={colors.muted} />
+                  <View style={styles.languageTextContainer}>
+                    <TextInput
+                      style={[styles.languageName, { padding: 0, margin: 0, height: 24, minWidth: 100 }]}
+                      placeholder="Language (e.g. English)"
+                      placeholderTextColor={colors.muted}
+                      value={lang.language}
+                      onChangeText={(text) => updateLanguageName(index, text)}
+                    />
+                  </View>
                 </View>
+                <Pressable style={styles.languageSelect} onPress={() => handleLevelSelect(index)}>
+                  <Text style={styles.languageSelectText}>{lang.level}</Text>
+                  <Ionicons name="chevron-down" size={16} color={colors.primary} />
+                </Pressable>
+                <Pressable onPress={() => removeLanguage(index)} style={{ padding: 8, marginLeft: 4 }}>
+                  <Ionicons name="trash-outline" size={20} color={colors.error} />
+                </Pressable>
               </View>
-              <Pressable style={styles.languageSelect} onPress={() => setLanguageLevel(languageLevel === "Fluent" ? "Intermediate" : "Fluent")}>
-                <Text style={styles.languageSelectText}>{languageLevel}</Text>
-                <Ionicons name="chevron-down" size={16} color={colors.primary} />
-              </Pressable>
-            </View>
+            ))}
 
-            <View style={styles.languageCard}>
-              <View style={styles.languageInfo}>
-                <Ionicons name="globe-outline" size={24} color={colors.muted} />
-                <View style={styles.languageTextContainer}>
-                  <Text style={styles.languageName}>French</Text>
-                </View>
-              </View>
-              <Pressable style={styles.languageSelect}>
-                <Text style={styles.languageSelectText}>Basic</Text>
-                <Ionicons name="chevron-down" size={16} color={colors.primary} />
-              </Pressable>
-            </View>
-
-            <Pressable style={styles.addLanguageButton}>
+            <Pressable style={styles.addLanguageButton} onPress={addLanguage}>
               <Ionicons name="add" size={18} color={colors.primary} />
               <Text style={styles.addLanguageText}>Add another language</Text>
             </Pressable>
+          </View>
+
+          {/* Personal Statement / Bio */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>Personal Bio</Text>
+            <View style={styles.textAreaContainer}>
+              <TextInput
+                style={styles.textArea}
+                multiline
+                numberOfLines={4}
+                maxLength={500}
+                placeholder="Write a short personal statement about yourself, your goals, and your background..."
+                placeholderTextColor={colors.muted}
+                value={bio}
+                onChangeText={setBio}
+                textAlignVertical="top"
+              />
+              <Text style={styles.charCount}>{bio.length}/500</Text>
+            </View>
+          </View>
+
+          {/* Achievements */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>Achievements</Text>
+            <View style={styles.textAreaContainer}>
+              <TextInput
+                style={styles.textArea}
+                multiline
+                numberOfLines={4}
+                maxLength={500}
+                placeholder="List your key extracurricular activities, awards, and achievements..."
+                placeholderTextColor={colors.muted}
+                value={achievements}
+                onChangeText={setAchievements}
+                textAlignVertical="top"
+              />
+              <Text style={styles.charCount}>{achievements.length}/500</Text>
+            </View>
           </View>
 
           {/* Standardized Tests */}
@@ -185,28 +400,45 @@ export default function ProfileSetupStep3Screen() {
 
           {/* File Upload */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Upload CV/Transcript</Text>
-            <Pressable style={styles.uploadZone}>
-              <View style={styles.uploadIconContainer}>
-                <Ionicons name="cloud-upload-outline" size={28} color={colors.primary} />
-              </View>
-              <Text style={styles.uploadTitle}>Tap to select files</Text>
-              <Text style={styles.uploadSubtitle}>PDF, DOCX up to 5MB</Text>
-            </Pressable>
+            <Text style={styles.sectionLabel}>Upload Documents</Text>
 
-            {/* Uploaded File Preview */}
-            <View style={styles.filePreview}>
-              <View style={styles.fileInfo}>
-                <Ionicons name="document-text" size={24} color={colors.primary} />
-                <View style={styles.fileTextContainer}>
-                  <Text style={styles.fileName} numberOfLines={1}>Aba_Mensah_CV_2024.pdf</Text>
-                  <Text style={styles.fileStatus}>READY TO UPLOAD</Text>
+            {/* Type Chips */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.typeChipsContainer}>
+              {documentTypes.map((type) => (
+                <Pressable
+                  key={type}
+                  style={[styles.typeChip, selectedDocType === type && styles.typeChipSelected]}
+                  onPress={() => setSelectedDocType(type)}
+                >
+                  <Text style={[styles.typeChipText, selectedDocType === type && styles.typeChipTextSelected]}>
+                    {type}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+
+            <TouchableOpacity style={styles.uploadZone} onPress={upload} disabled={uploading} activeOpacity={0.8}>
+              <View style={styles.uploadIconContainer}>
+                <Ionicons name={uploading ? "reload" : "cloud-upload-outline"} size={28} color={colors.primary} />
+              </View>
+              <Text style={styles.uploadTitle}>{uploading ? `Uploading... ${uploadProgress}%` : "Tap to upload files here"}</Text>
+              <Text style={styles.uploadSubtitle}>PDF, JPG, or PNG (Max 10MB)</Text>
+            </TouchableOpacity>
+
+            {/* Uploaded Documents List */}
+            {docs.length > 0 && (
+              <View style={styles.docsListContainer}>
+                <Text style={styles.sectionLabel}>Recently Uploaded</Text>
+                <View style={styles.docsList}>
+                  {[...docs]
+                    .sort((a, b) => new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime())
+                    .slice(0, 5)
+                    .map((item) => (
+                    <DocumentCard key={item.id} item={item} onDelete={deleteDocument} />
+                  ))}
                 </View>
               </View>
-              <Pressable style={styles.deleteButton}>
-                <Ionicons name="trash-outline" size={20} color={colors.danger} />
-              </Pressable>
-            </View>
+            )}
           </View>
 
         </View>
@@ -228,6 +460,16 @@ export default function ProfileSetupStep3Screen() {
         </Pressable>
       </View>
       </KeyboardAvoidingView>
+
+      <DisclaimerModal
+        visible={showDisclaimerModal}
+        isAccepting={isAccepting}
+        onAccept={async () => {
+          await acceptDisclaimer();
+          setShowDisclaimerModal(false);
+        }}
+        onClose={() => setShowDisclaimerModal(false)}
+      />
     </View>
   );
 }
@@ -407,6 +649,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.primary,
   },
+  textAreaContainer: {
+    backgroundColor: colors.surface,
+    borderWidth: 2,
+    borderColor: "#E9ECEF",
+    borderRadius: 12,
+    padding: 12,
+  },
+  textArea: {
+    fontFamily: "BeVietnamPro_400Regular",
+    fontSize: 14,
+    color: colors.primary,
+    minHeight: 100,
+  },
+  charCount: {
+    fontFamily: "BeVietnamPro_400Regular",
+    fontSize: 12,
+    color: colors.muted,
+    textAlign: "right",
+    marginTop: 8,
+  },
   testsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -441,74 +703,67 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.primary,
   },
+  typeChipsContainer: {
+    flexDirection: "row",
+    gap: 8,
+    paddingBottom: 12,
+  },
+  typeChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: "transparent",
+  },
+  typeChipSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  typeChipText: {
+    fontFamily: "BeVietnamPro_600SemiBold",
+    fontSize: 12,
+    color: colors.muted,
+  },
+  typeChipTextSelected: {
+    color: "#ffffff",
+  },
   uploadZone: {
     borderWidth: 2,
-    borderColor: colors.border,
+    borderColor: "rgba(195, 198, 209, 0.8)",
     borderStyle: "dashed",
     borderRadius: 12,
+    backgroundColor: "#ffffff",
     padding: 24,
     alignItems: "center",
-    backgroundColor: colors.surfaceMuted,
+    justifyContent: "center",
+    marginBottom: 16,
   },
   uploadIconContainer: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: colors.surface,
+    backgroundColor: "rgba(0, 51, 102, 0.1)",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
   },
   uploadTitle: {
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 16,
-    color: colors.primary,
+    color: colors.ink,
     marginBottom: 4,
   },
   uploadSubtitle: {
-    fontFamily: "BeVietnamPro_400Regular",
+    fontFamily: "BeVietnamPro_600SemiBold",
     fontSize: 12,
     color: colors.muted,
   },
-  filePreview: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "rgba(0, 51, 102, 0.05)",
-    borderWidth: 1,
-    borderColor: "rgba(0, 51, 102, 0.1)",
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 8,
+  docsListContainer: {
+    marginTop: 16,
   },
-  fileInfo: {
-    flexDirection: "row",
-    alignItems: "center",
+  docsList: {
     gap: 12,
-    flex: 1,
-  },
-  fileTextContainer: {
-    flex: 1,
-  },
-  fileName: {
-    fontFamily: "BeVietnamPro_600SemiBold",
-    fontSize: 14,
-    color: colors.primary,
-  },
-  fileStatus: {
-    fontFamily: "BeVietnamPro_600SemiBold",
-    fontSize: 10,
-    color: colors.muted,
-    textTransform: "uppercase",
-    marginTop: 2,
-  },
-  deleteButton: {
-    padding: 8,
   },
   footerNav: {
     flexDirection: "row",

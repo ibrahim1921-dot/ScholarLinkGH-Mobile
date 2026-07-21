@@ -1,4 +1,4 @@
-import { ApplicationStatus, ApplicationTracker } from '../types/api';
+import { ApplicationMode, ApplicationStatus, ApplicationTracker } from '../types/api';
 import { apiClient } from './apiClient';
 
 export const trackerService = {
@@ -22,11 +22,14 @@ export const trackerService = {
     }
   },
 
-  async createTracker(scholarshipId: number): Promise<ApplicationTracker> {
+  async createTracker(scholarshipId: number, status?: ApplicationStatus, applicationMode?: ApplicationMode): Promise<ApplicationTracker> {
     try {
-      const response = await apiClient.post<ApplicationTracker>('/api/v1/trackers', { scholarshipId });
+      const response = await apiClient.post<ApplicationTracker>('/api/v1/trackers', { scholarshipId, status, applicationMode });
       return response.data;
     } catch (error: any) {
+      if (error.response?.status === 409) {
+        throw new Error('This scholarship is already in your tracker.');
+      }
       const message = error.response?.data?.message || error.message || 'Something went wrong';
       throw new Error(message);
     }

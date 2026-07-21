@@ -22,17 +22,17 @@ const COUNTRIES = ["Ghana", "USA", "UK", "Canada", "Germany"];
 
 const NEEDS = [
   {
-    id: "low",
+    id: "LOW",
     title: "Partial Support (Low)",
     description: "I have significant personal funding.",
   },
   {
-    id: "medium",
+    id: "MEDIUM",
     title: "Balanced (Medium)",
     description: "I need roughly 50% tuition coverage.",
   },
   {
-    id: "high",
+    id: "HIGH",
     title: "Full Support (High)",
     description: "I require a full scholarship and stipend.",
   },
@@ -49,7 +49,7 @@ export default function ProfileSetupStep2Screen() {
   const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
   const [selectedCountries, setSelectedCountries] = useState<string[]>(["USA"]);
-  const [selectedNeed, setSelectedNeed] = useState("medium");
+  const [selectedNeed, setSelectedNeed] = useState("MEDIUM");
   const [selectedSemester, setSelectedSemester] = useState("fall2025");
   const [showSemesterPicker, setShowSemesterPicker] = useState(false);
 
@@ -63,8 +63,11 @@ export default function ProfileSetupStep2Screen() {
         if (profile.countryPreference) {
           setSelectedCountries(profile.countryPreference.split(',').map(s => s.trim()));
         }
-        if (profile.financialNeed !== undefined) {
-          setSelectedNeed(profile.financialNeed ? "high" : "low");
+        if (profile.intendedStartDate) {
+          setSelectedSemester(profile.intendedStartDate);
+        }
+        if (profile.financialNeed) {
+          setSelectedNeed(profile.financialNeed);
         }
       } catch (e) {
         // Ignore if profile doesn't exist
@@ -88,7 +91,8 @@ export default function ProfileSetupStep2Screen() {
     try {
       await profileService.updateProfile({
         country_preference: selectedCountries.join(','),
-        financial_need: selectedNeed === "high" || selectedNeed === "medium",
+        financial_need: selectedNeed,
+        intended_start_date: selectedSemester,
       });
       queryClient.invalidateQueries({ queryKey: ['profileCompleteness'] });
       router.push("/profile-setup-step-3");

@@ -10,24 +10,32 @@ import { AppTextInput } from '../components/AppTextInput';
 import { colors } from '../constants/colors';
 import { useAuth } from '../hooks/useAuth';
 import { profileService } from '../services/profileService';
+import { educationLevels } from '../constants/options';
 
 export default function ProfileSetupScreen() {
   const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const [educationLevel, setEducationLevel] = useState('');
   const [institution, setInstitution] = useState('');
   const [fieldOfStudy, setFieldOfStudy] = useState('');
   const [gpa, setGpa] = useState('3.5');
+  const [graduationYear, setGraduationYear] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
+
+  const currentYear = new Date().getFullYear();
+  const yearOptions = Array.from({ length: 7 }, (_, i) => currentYear + i);
 
   useEffect(() => {
     const loadProfile = async () => {
       try {
         const profile = await profileService.getProfile();
+        if (profile.educationLevel) setEducationLevel(profile.educationLevel);
         if (profile.institution) setInstitution(profile.institution);
         if (profile.fieldOfStudy) setFieldOfStudy(profile.fieldOfStudy);
         if (profile.gpa) setGpa(profile.gpa.toString());
+        if (profile.graduationYear) setGraduationYear(profile.graduationYear);
       } catch (e) {
         // Profile might not exist yet, that's fine
       } finally {
@@ -38,17 +46,19 @@ export default function ProfileSetupScreen() {
   }, []);
 
   const handleSubmit = async () => {
-    if (!institution || !fieldOfStudy) {
-      Alert.alert('Missing Fields', 'Please fill in the required fields.');
+    if (!educationLevel || !institution || !fieldOfStudy || !graduationYear) {
+      Alert.alert('Missing Fields', 'Please fill in all the required fields.');
       return;
     }
 
     setLoading(true);
     try {
       await profileService.updateProfile({
+        education_level: educationLevel as any,
         institution,
         field_of_study: fieldOfStudy,
         gpa: gpa ? parseFloat(gpa) : undefined,
+        graduation_year: graduationYear,
       });
       queryClient.invalidateQueries({ queryKey: ['profileCompleteness'] });
       router.push('/profile-setup-step-2');
@@ -117,6 +127,32 @@ export default function ProfileSetupScreen() {
 
             <View style={styles.formContent}>
               <View style={styles.inputGroup}>
+                <Text style={styles.label}>Education Level</Text>
+                <View style={styles.educationToggleContainer}>
+                  {educationLevels.map((lvl) => {
+                    const isSelected = educationLevel === lvl.value;
+                    return (
+                      <Pressable
+                        key={lvl.value}
+                        onPress={() => setEducationLevel(lvl.value)}
+                        style={[
+                          styles.eduBtn,
+                          isSelected ? styles.eduBtnSelected : styles.eduBtnUnselected
+                        ]}
+                      >
+                        <Text style={[
+                          styles.eduBtnText, 
+                          isSelected ? styles.eduBtnTextSelected : styles.eduBtnTextUnselected
+                        ]}>
+                          {lvl.label === "SHS Graduate" ? "SHS Graduate" : "University Student"}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
                 <Text style={styles.label}>Current Institution</Text>
                 <AppTextInput
                   label=""
@@ -155,6 +191,24 @@ export default function ProfileSetupScreen() {
                   <Ionicons name="information-circle-outline" size={16} color={colors.muted} />
                   <Text style={styles.gpaHintText}>Estimate if you don't have your official transcript yet.</Text>
                 </View>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Graduation Year</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.yearScrollContent}>
+                  {yearOptions.map(year => {
+                    const isSelected = graduationYear === year;
+                    return (
+                      <Pressable 
+                        key={year} 
+                        style={[styles.yearPill, isSelected && styles.yearPillSelected]}
+                        onPress={() => setGraduationYear(year)}
+                      >
+                        <Text style={[styles.yearText, isSelected && styles.yearTextSelected]}>{year}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
               </View>
             </View>
           </View>
@@ -336,6 +390,67 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontStyle: 'italic',
     flex: 1,
+  },
+  educationToggleContainer: {
+    flexDirection: "row",
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: 12,
+    padding: 4,
+    gap: 4,
+  },
+  eduBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  eduBtnSelected: {
+    backgroundColor: "#ffffff",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+    borderWidth: 1,
+    borderColor: "rgba(195, 198, 209, 0.3)",
+  },
+  eduBtnUnselected: {
+    backgroundColor: "transparent",
+  },
+  eduBtnText: {
+    fontSize: 14,
+    fontFamily: "PlusJakartaSans_700Bold",
+  },
+  eduBtnTextSelected: {
+    color: colors.primary,
+  },
+  eduBtnTextUnselected: {
+    color: colors.muted,
+  },
+  yearScrollContent: {
+    gap: 8,
+    paddingVertical: 4,
+  },
+  yearPill: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  yearPillSelected: {
+    backgroundColor: '#d5e3ff',
+    borderColor: colors.primary,
+  },
+  yearText: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: 14,
+    color: colors.muted,
+  },
+  yearTextSelected: {
+    color: colors.primary,
   },
   decorativeContainer: {
     marginTop: 24,

@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "../../hooks/useAuth";
 import { getErrorMessage } from "../../services/apiClient";
-import { educationLevels } from "../../constants/options";
+
 
 // Local colors matching the Tailwind design specs
 const dsColors = {
@@ -32,7 +32,7 @@ export default function RegisterScreen() {
   const [nameError, setNameError] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [educationLevel, setEducationLevel] = useState("");
+
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -68,7 +68,6 @@ export default function RegisterScreen() {
       !name.trim() ||
       !email.trim() ||
       !phone.trim() ||
-      !educationLevel ||
       !password
     ) {
       Alert.alert("Missing Fields", "Please fill in all fields.");
@@ -84,7 +83,6 @@ export default function RegisterScreen() {
         username: name.trim(), 
         email: email.trim(),
         phoneNumber: phone.trim(),
-        educationLevel: educationLevel as any,
         password,
       });
       router.push({
@@ -124,31 +122,7 @@ export default function RegisterScreen() {
         {/* Form */}
         <View style={styles.formContainer}>
           
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>SELECT EDUCATION LEVEL</Text>
-            <View style={styles.educationToggleContainer}>
-              {educationLevels.map((lvl) => {
-                const isSelected = educationLevel === lvl.value;
-                return (
-                  <Pressable
-                    key={lvl.value}
-                    onPress={() => setEducationLevel(lvl.value)}
-                    style={[
-                      styles.eduBtn,
-                      isSelected ? styles.eduBtnSelected : styles.eduBtnUnselected
-                    ]}
-                  >
-                    <Text style={[
-                      styles.eduBtnText, 
-                      isSelected ? styles.eduBtnTextSelected : styles.eduBtnTextUnselected
-                    ]}>
-                      {lvl.label === "SHS Graduate" ? "SHS Graduate" : "University Student"}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
+
 
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>FULL NAME</Text>
@@ -325,43 +299,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     textTransform: "uppercase",
   },
-  educationToggleContainer: {
-    flexDirection: "row",
-    backgroundColor: dsColors.surfaceContainerLow,
-    borderRadius: 12,
-    padding: 4,
-    gap: 4,
-  },
-  eduBtn: {
-    flex: 1,
-    height: 48,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  eduBtnSelected: {
-    backgroundColor: "#ffffff",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-    borderWidth: 1,
-    borderColor: "rgba(195, 198, 209, 0.3)",
-  },
-  eduBtnUnselected: {
-    backgroundColor: "transparent",
-  },
-  eduBtnText: {
-    fontSize: 14,
-    fontFamily: "PlusJakartaSans_700Bold",
-  },
-  eduBtnTextSelected: {
-    color: dsColors.primary,
-  },
-  eduBtnTextUnselected: {
-    color: dsColors.onSurfaceVariant,
-  },
+
   inputWrapper: {
     position: "relative",
     justifyContent: "center",

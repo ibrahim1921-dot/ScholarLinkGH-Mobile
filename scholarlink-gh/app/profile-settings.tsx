@@ -16,7 +16,7 @@ import { UserAvatar } from "../components/UserAvatar";
 
 const SETTINGS_ITEMS = [
   { id: 'personal', title: 'Personal Information', icon: 'person-outline' },
-  { id: 'vault', title: 'Document Vault', icon: 'folder-open-outline' },
+  { id: 'vault', title: 'Document Vault', icon: 'folder-open-outline', route: '/documents' },
   { id: 'notifications', title: 'Notification Settings', icon: 'notifications-outline', route: '/notifications' },
   { id: 'security', title: 'Security & Password', icon: 'lock-closed-outline' },
 ];

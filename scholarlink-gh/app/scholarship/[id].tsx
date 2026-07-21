@@ -2,14 +2,14 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, router, Stack } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Linking, StyleSheet, Text, View, ScrollView, Pressable, Platform, Share } from 'react-native';
+import { Alert, ImageBackground, Linking, StyleSheet, Text, View, ScrollView, Pressable, Platform, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Screen } from '../../components/Screen';
 import { ErrorState, LoadingState } from '../../components/StateView';
 import { colors } from '../../constants/colors';
 import { trackerService } from '../../services/trackerService';
-import { useScholarshipDetail, useScholarshipEligibility, useSavedScholarships, useToggleSaveScholarship } from '../../hooks/useScholarship';
+import { useScholarshipDetail, useScholarshipEligibility, useSavedScholarships, useToggleSaveScholarship, useReportScholarship } from '../../hooks/useScholarship';
 
 export default function ScholarshipDetailScreen() {
   const insets = useSafeAreaInsets();
@@ -26,6 +26,33 @@ export default function ScholarshipDetailScreen() {
   const { data: eligibility } = useScholarshipEligibility(scholarshipId);
   const { data: savedScholarships } = useSavedScholarships();
   const toggleSaveMutation = useToggleSaveScholarship();
+  const reportMutation = useReportScholarship();
+  const [reported, setReported] = useState(false);
+
+  const handleReport = () => {
+    Alert.alert(
+      'Report',
+      'Report this scholarship?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Confirm', 
+          style: 'destructive',
+          onPress: () => {
+            reportMutation.mutate(scholarshipId, {
+              onSuccess: () => {
+                setReported(true);
+                Alert.alert('Reported', "Thanks, we'll review this");
+              },
+              onError: (err: any) => {
+                Alert.alert('Error', err?.message ?? 'Could not report');
+              }
+            });
+          }
+        }
+      ]
+    );
+  };
 
   const loading = isScholarshipLoading;
   const error = isScholarshipError ? (scholarshipError as Error)?.message ?? 'Failed to load scholarship' : null;
@@ -37,7 +64,11 @@ export default function ScholarshipDetailScreen() {
       await trackerService.createTracker(scholarshipId);
       Alert.alert('Tracked!', 'Scholarship added to your applications tracker.');
     } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'Could not track');
+      if (e?.message === 'This scholarship is already in your tracker.') {
+        Alert.alert('Already Tracked', e.message);
+      } else {
+        Alert.alert('Error', e?.message ?? 'Could not track');
+      }
     } finally {
       setTracking(false);
     }
@@ -55,38 +86,88 @@ export default function ScholarshipDetailScreen() {
           <Ionicons name="arrow-back" size={24} color={colors.primary} />
         </Pressable>
         <Text style={styles.headerTitle}>Scholarship Detail</Text>
-        <Pressable style={styles.iconBtn} onPress={async () => {
-          try {
-            await Share.share({
-              message: `Check out this scholarship: ${scholarship.name}\nDeadline: ${scholarship.daysUntilDeadline != null ? scholarship.daysUntilDeadline + ' days left' : 'Varies'}\n${scholarship.officialLink}`,
-            });
-          } catch (error: any) {
-            Alert.alert('Error', error.message);
-          }
-        }}>
-          <Ionicons name="share-outline" size={24} color={colors.primary} />
-        </Pressable>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <Pressable 
+            style={[styles.iconBtn, reported && { opacity: 0.5 }]} 
+            disabled={reported || reportMutation.isPending}
+            onPress={handleReport}
+          >
+            <Ionicons name={reported ? "flag" : "flag-outline"} size={20} color={reported ? "#ba1a1a" : colors.primary} />
+          </Pressable>
+          <Pressable style={styles.iconBtn} onPress={async () => {
+            try {
+              await Share.share({
+                message: `Check out this scholarship: ${scholarship.name}\nDeadline: ${scholarship.daysUntilDeadline != null ? (scholarship.daysUntilDeadline < 0 ? 'Expired' : scholarship.daysUntilDeadline === 0 ? 'Closing today' : scholarship.daysUntilDeadline + ' days left') : 'Varies'}\n${scholarship.officialLink}`,
+              });
+            } catch (error: any) {
+              Alert.alert('Error', error.message);
+            }
+          }}>
+            <Ionicons name="share-outline" size={24} color={colors.primary} />
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Hero Section */}
-        <View style={styles.heroSection}>
+        <ImageBackground
+          source={scholarship.imageUrl ? { uri: scholarship.imageUrl } : require('../../assets/images/header-scholarships.jpg')}
+          style={styles.heroSection}
+          imageStyle={styles.heroImageStyle}
+          resizeMode="cover"
+        >
+          <View style={styles.heroOverlay} />
           <View style={styles.heroTopRow}>
-            <View style={styles.logoBox}>
-              <Ionicons name="school" size={32} color={colors.primary} />
+            <View style={{flexDirection: 'row', gap: 8, alignItems: 'center'}}>
+              <View style={styles.logoBox}>
+                <Ionicons name="school" size={32} color={colors.primary} />
+              </View>
+              {scholarship.status && (
+                <View style={[
+                  styles.statusBadge,
+                  scholarship.status === 'OPEN' ? styles.statusBadgeOpen :
+                  scholarship.status === 'CLOSED' ? styles.statusBadgeClosed :
+                  styles.statusBadgeWarning
+                ]}>
+                  <Text style={[
+                    styles.statusBadgeText,
+                    scholarship.status === 'OPEN' ? styles.statusTextOpen :
+                    scholarship.status === 'CLOSED' ? styles.statusTextClosed :
+                    styles.statusTextWarning
+                  ]}>
+                    {scholarship.status === 'CLOSING_SOON' ? 'CLOSING SOON' : scholarship.status}
+                  </Text>
+                </View>
+              )}
             </View>
             {scholarship.daysUntilDeadline != null && (
               <View style={styles.deadlineBadge}>
                 <Ionicons name="time" size={14} color="#ffffff" style={{ marginRight: 4 }} />
                 <Text style={styles.deadlineBadgeText}>
-                  {scholarship.daysUntilDeadline} days left
+                  {scholarship.daysUntilDeadline < 0
+                    ? 'Expired'
+                    : scholarship.daysUntilDeadline === 0
+                    ? 'Closing today'
+                    : `${scholarship.daysUntilDeadline} days left`}
                 </Text>
               </View>
             )}
           </View>
           <Text style={styles.heroTitle}>{scholarship.name}</Text>
-          <Text style={styles.heroSubtitle}>{scholarship.provider} {scholarship.destinationCountry ? `• ${scholarship.destinationCountry}` : ''}</Text>
-        </View>
+          <Text style={styles.heroSubtitle}>
+            {scholarship.provider} {scholarship.destinationCountry ? `• ${scholarship.destinationCountry}` : ''}
+            {scholarship.category ? ` • ${scholarship.category.replace(/_/g, ' ')}` : ''}
+          </Text>
+          {scholarship.eligibleFields && (
+            <View style={styles.chipContainer}>
+              {scholarship.eligibleFields.split(',').map((f, i) => (
+                <View key={i} style={styles.chip}>
+                  <Text style={styles.chipText}>{f.trim()}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </ImageBackground>
 
         {/* Eligibility Checklist */}
         {(eligibility || scholarship.gpaRequirement > 0) && (
@@ -188,7 +269,8 @@ export default function ScholarshipDetailScreen() {
       {/* Sticky Bottom Actions */}
       <View style={styles.bottomActions}>
         <Pressable 
-          style={styles.actionBtnSecondary}
+          style={[styles.actionBtnSecondary, toggleSaveMutation.isPending && { opacity: 0.5 }]} 
+          disabled={toggleSaveMutation.isPending}
           onPress={() => toggleSaveMutation.mutate(scholarshipId)}
         >
           <Ionicons 
@@ -200,10 +282,71 @@ export default function ScholarshipDetailScreen() {
         <Pressable style={styles.actionBtnSecondary} onPress={handleTrack} disabled={tracking}>
           <Ionicons name={tracking ? "hourglass-outline" : "stats-chart-outline"} size={24} color={colors.primary} />
         </Pressable>
-        <Pressable style={styles.actionBtnPrimary} onPress={() => Linking.openURL(scholarship.officialLink)}>
-          <Text style={styles.actionBtnPrimaryText}>Apply Now</Text>
-          <Ionicons name="open-outline" size={20} color="#ffffff" />
-        </Pressable>
+        {(() => {
+          const isClosed = scholarship.status === 'CLOSED';
+          const isFull = scholarship.status === 'FULL';
+          const isDisabled = isClosed || isFull;
+          
+          if (!scholarship.officialLink) {
+             return (
+              <View style={[styles.actionBtnPrimary, styles.actionBtnDisabled]}>
+                <Text style={styles.actionBtnPrimaryText}>Link unavailable</Text>
+              </View>
+             );
+          }
+
+          return (
+            <Pressable 
+              style={[styles.actionBtnPrimary, isDisabled && styles.actionBtnDisabled]} 
+              disabled={isDisabled}
+              onPress={() => {
+                const openLink = () => {
+                  try {
+                    let url = scholarship.officialLink;
+                    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                      url = 'https://' + url;
+                    }
+                    Linking.openURL(url).catch(() => Alert.alert('Error', "Couldn't open link"));
+                  } catch (e) {
+                    Alert.alert('Error', "Couldn't open link");
+                  }
+                };
+
+                if (scholarship.allowsAssistedApplication) {
+                  Alert.alert(
+                    'Choose Application Method',
+                    'How would you like to apply for this scholarship?',
+                    [
+                      {
+                        text: 'Apply Directly (External Portal)',
+                        onPress: openLink
+                      },
+                      {
+                        text: 'Apply via ScholarLink GH (Assisted)',
+                        onPress: async () => {
+                          try {
+                            await trackerService.createTracker(scholarshipId, 'IN_PROGRESS', 'ASSISTED');
+                            Alert.alert('Assisted Application', 'Our agency team will contact you to collect your documents and apply on your behalf.');
+                          } catch (e: any) {
+                            Alert.alert('Error', e?.message ?? 'Could not create application tracker');
+                          }
+                        }
+                      },
+                      { text: 'Cancel', style: 'cancel' }
+                    ]
+                  );
+                } else {
+                  openLink();
+                }
+              }}
+            >
+              <Text style={styles.actionBtnPrimaryText}>
+                {isClosed ? 'Applications closed' : isFull ? 'Position full' : 'Apply Now'}
+              </Text>
+              {!isDisabled && <Ionicons name="open-outline" size={20} color="#ffffff" />}
+            </Pressable>
+          );
+        })()}
       </View>
     </View>
   );
@@ -241,10 +384,20 @@ const styles = StyleSheet.create({
     paddingBottom: 100, // Room for bottom actions
   },
   heroSection: {
-    backgroundColor: '#003366', // primary-container
     borderRadius: 16,
     padding: 24,
     marginBottom: 24,
+    overflow: 'hidden',
+    minHeight: 200,
+    justifyContent: 'flex-end',
+  },
+  heroImageStyle: {
+    borderRadius: 16,
+  },
+  heroOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 51, 102, 0.65)',
+    borderRadius: 16,
   },
   heroTopRow: {
     flexDirection: 'row',
@@ -452,6 +605,56 @@ const styles = StyleSheet.create({
   actionBtnPrimaryText: {
     fontFamily: 'PlusJakartaSans_700Bold',
     fontSize: 16,
+    color: '#ffffff',
+  },
+  actionBtnDisabled: {
+    backgroundColor: '#8e9199',
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  statusBadgeOpen: {
+    backgroundColor: 'rgba(160, 243, 153, 0.2)',
+  },
+  statusBadgeClosed: {
+    backgroundColor: 'rgba(226, 226, 231, 0.3)',
+  },
+  statusBadgeWarning: {
+    backgroundColor: 'rgba(255, 219, 202, 0.2)',
+  },
+  statusBadgeText: {
+    fontFamily: 'BeVietnamPro_600SemiBold',
+    fontSize: 10,
+    letterSpacing: 0.5,
+  },
+  statusTextOpen: {
+    color: '#a0f399',
+  },
+  statusTextClosed: {
+    color: '#c3c6d1',
+  },
+  statusTextWarning: {
+    color: '#ffdbca',
+  },
+  chipContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  chip: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  chipText: {
+    fontFamily: 'BeVietnamPro_600SemiBold',
+    fontSize: 12,
     color: '#ffffff',
   },
 });

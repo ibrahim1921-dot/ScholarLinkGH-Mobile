@@ -1,4 +1,4 @@
-import { ApiResponse, AuthResponse, EducationLevel } from '../types/api';
+import { ApiResponse, AuthResponse } from '../types/api';
 import { apiClient } from './apiClient';
 import { refreshAccessToken } from './tokenRefresh';
 
@@ -6,7 +6,6 @@ export type RegisterPayload = {
   username: string;
   email: string;
   phoneNumber: string;
-  educationLevel: EducationLevel;
   password: string;
 };
 

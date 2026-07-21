@@ -32,7 +32,9 @@ export type StudentProfile = {
   graduationYear?: number;
   countryPreference?: string;
   languageProficiency?: string;
-  financialNeed?: boolean;
+  standardizedTests?: string;
+  financialNeed?: string;
+  intendedStartDate?: string;
   bio?: string;
   achievements?: string;
   profileStrengthScore?: number | null;
@@ -48,7 +50,9 @@ export type ProfilePayload = {
   graduation_year?: number;
   country_preference?: string;
   language_proficiency?: string;
-  financial_need?: boolean;
+  standardized_tests?: string;
+  financial_need?: string;
+  intended_start_date?: string;
   bio?: string;
   achievements?: string;
 };
@@ -68,7 +72,12 @@ export type Scholarship = {
   requirements: string;
   selectionCriteria: string;
   additionalNotes?: string;
+  imageUrl?: string | null;
+  status?: 'OPEN' | 'CLOSING_SOON' | 'CLOSED' | 'FULL' | null;
   verified: boolean;
+  allowsAssistedApplication?: boolean;
+  assistedApplicationFee?: number;
+  reportCount?: number;
   createdAt: string;
 };
 
@@ -95,6 +104,7 @@ export type EligibilityResult = {
 };
 
 export type ApplicationStatus = (typeof applicationStatuses)[number];
+export type ApplicationMode = 'DIRECT' | 'ASSISTED';
 
 export type ApplicationTracker = {
   id: number;
@@ -104,6 +114,7 @@ export type ApplicationTracker = {
   scholarshipDeadline: string;
   deadlineCountdown: number;
   status: ApplicationStatus;
+  applicationMode?: ApplicationMode;
   notes?: string;
   deadlineRemindersSent?: string;
   submittedAt?: string;

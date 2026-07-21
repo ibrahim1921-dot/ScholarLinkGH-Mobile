@@ -14,6 +14,7 @@ type Props = {
   title: string;
   onPress: () => void;
   loading?: boolean;
+  disabled?: boolean;
   variant?: "primary" | "secondary" | "ghost" | "danger";
   style?: StyleProp<ViewStyle>;
   icon?: React.ReactNode;
@@ -23,6 +24,7 @@ export function AppButton({
   title,
   onPress,
   loading,
+  disabled,
   variant = "primary",
   style,
   icon,
@@ -36,13 +38,13 @@ export function AppButton({
 
   return (
     <Pressable
-      disabled={loading}
+      disabled={loading || disabled}
       onPress={onPress}
       style={({ pressed }) => [
         styles.base,
         styles[variant],
         pressed && styles.pressed,
-        loading && styles.disabled,
+        (loading || disabled) && styles.disabled,
         style,
       ]}
     >

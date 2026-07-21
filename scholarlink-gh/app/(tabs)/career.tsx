@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Alert, FlatList, Linking, StyleSheet, Text, View, Pressable, TextInput, ScrollView, Platform, Image } from 'react-native';
+import { Alert, FlatList, Linking, StyleSheet, Text, View, Pressable, TextInput, ScrollView, Platform, Image, ImageBackground } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { Screen } from '../../components/Screen';
@@ -83,18 +83,23 @@ export default function CareerScreen() {
   return (
     <View style={styles.container}>
       {/* Top App Bar */}
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+      <ImageBackground
+        source={require("../../assets/images/header-career.jpg")}
+        style={[styles.header, { paddingTop: insets.top + 10 }]}
+        imageStyle={{ resizeMode: "cover" }}
+      >
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.primary, opacity: 0.65 }]} />
         <View style={styles.headerLeft}>
-          <Ionicons name="menu" size={24} color={colors.primary} style={{ marginRight: 8 }} />
-          <Text style={styles.headerTitle}>Jobs & Internships</Text>
+          <Ionicons name="menu" size={24} color="#ffffff" style={{ marginRight: 8 }} />
+          <Text style={[styles.headerTitle, { color: '#ffffff' }]}>Jobs & Internships</Text>
         </View>
         <View style={styles.headerRight}>
           <Pressable style={styles.iconBtn} onPress={() => router.push("/notifications")}>
-            <Ionicons name="notifications-outline" size={24} color={colors.primary} />
+            <Ionicons name="notifications-outline" size={24} color="#ffffff" />
           </Pressable>
-          <UserAvatar size={32} style={styles.avatar} />
+          <UserAvatar size={32} style={[styles.avatar, { borderColor: '#ffffff', borderWidth: 1 }]} />
         </View>
-      </View>
+      </ImageBackground>
 
       <FlatList
         data={filteredJobs}
@@ -265,7 +270,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: 20,
-    paddingBottom: 100, // Safe area for tabs
+    paddingBottom: 120, // Safe area for tabs
   },
   searchFilterSection: {
     marginBottom: 24,

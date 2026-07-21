@@ -2,6 +2,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { trackerService } from '../services/trackerService';
 import { ApplicationStatus } from '../types/api';
 
+export const useTrackers = () => {
+  return useQuery({
+    queryKey: ['trackers'],
+    queryFn: () => trackerService.getTrackers(),
+  });
+};
+
 export const useApplicationDetail = (trackerId: number) => {
   return useQuery({
     queryKey: ['trackerDetail', trackerId],

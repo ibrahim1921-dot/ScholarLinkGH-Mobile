@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Alert, StyleSheet, Text, View, TextInput, ScrollView, Pressable, Platform, KeyboardAvoidingView, ActivityIndicator, Image } from "react-native";
+import { Alert, StyleSheet, Text, View, TextInput, ScrollView, Pressable, Platform, KeyboardAvoidingView, ActivityIndicator, Image, ImageBackground } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { colors } from "../../constants/colors";
@@ -118,20 +118,25 @@ export default function AssistantScreen() {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
     >
       {/* Top App Bar */}
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+      <ImageBackground
+        source={require("../../assets/images/header-assistant.jpg")}
+        style={[styles.header, { paddingTop: insets.top + 10 }]}
+        imageStyle={{ resizeMode: "cover" }}
+      >
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.primary, opacity: 0.65 }]} />
         <View style={styles.headerLeft}>
           <Pressable style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={24} color={colors.primary} />
+            <Ionicons name="arrow-back" size={24} color="#ffffff" />
           </Pressable>
-          <Text style={styles.headerTitle}>AI Coach</Text>
+          <Text style={[styles.headerTitle, { color: '#ffffff' }]}>AI Coach</Text>
         </View>
         <View style={styles.statusBox}>
           <View style={styles.botIconSmall}>
             <Ionicons name="hardware-chip" size={14} color="#1b6d24" />
           </View>
-          <Text style={styles.statusText}>Online</Text>
+          <Text style={[styles.statusText, { color: '#a0f399' }]}>Online</Text>
         </View>
-      </View>
+      </ImageBackground>
 
       {/* Main Chat Canvas */}
       <ScrollView 
@@ -183,7 +188,7 @@ export default function AssistantScreen() {
       </ScrollView>
 
       {/* Bottom Interaction Area */}
-      <View style={styles.bottomArea}>
+      <View style={[styles.bottomArea, { paddingBottom: Math.max(insets.bottom + 90, 100) }]}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.promptsScroll}>
           <Pressable style={styles.promptBtn} onPress={handleGeneratePs} disabled={loading}>
             <Text style={styles.promptBtnText}>Generate personal statement</Text>

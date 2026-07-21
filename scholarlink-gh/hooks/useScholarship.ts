@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Alert } from 'react-native';
 import { scholarshipService } from '../services/scholarshipService';
 
 export function useScholarshipDetail(scholarshipId: number) {
@@ -29,11 +30,35 @@ export function useToggleSaveScholarship() {
   
   return useMutation({
     mutationFn: (scholarshipId: number) => scholarshipService.toggleSaveScholarship(scholarshipId),
-    onSuccess: (data, variables) => {
-      // Invalidate the saved scholarships list so it refetches
+    onMutate: async (scholarshipId) => {
+      await queryClient.cancelQueries({ queryKey: ['savedScholarships'] });
+      const previousSaved = queryClient.getQueryData<any[]>(['savedScholarships']);
+      
+      if (previousSaved) {
+        const isSaved = previousSaved.some(s => s.id === scholarshipId);
+        const newSaved = isSaved 
+          ? previousSaved.filter(s => s.id !== scholarshipId)
+          : [...previousSaved, { id: scholarshipId }];
+        queryClient.setQueryData(['savedScholarships'], newSaved);
+      }
+      
+      return { previousSaved };
+    },
+    onError: (err: any, variables, context) => {
+      if (context?.previousSaved) {
+        queryClient.setQueryData(['savedScholarships'], context.previousSaved);
+      }
+      Alert.alert('Error', err?.message ?? 'Failed to save scholarship');
+    },
+    onSettled: (data, error, variables) => {
       queryClient.invalidateQueries({ queryKey: ['savedScholarships'] });
-      // Also invalidate the specific scholarship query in case it's tracking saved state there
       queryClient.invalidateQueries({ queryKey: ['scholarship', variables] });
     },
+  });
+}
+
+export function useReportScholarship() {
+  return useMutation({
+    mutationFn: (scholarshipId: number) => scholarshipService.reportScholarship(scholarshipId),
   });
 }

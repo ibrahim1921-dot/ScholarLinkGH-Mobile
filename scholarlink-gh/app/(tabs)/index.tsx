@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { StyleSheet, Text, View, Image, ScrollView, Pressable, Modal } from "react-native";
+import { StyleSheet, Text, View, Image, ScrollView, Pressable, Modal, ImageBackground, ActivityIndicator } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -35,6 +35,9 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [menuVisible, setMenuVisible] = useState(false);
+  const [isMatching, setIsMatching] = useState(false);
+  const [matchCooldown, setMatchCooldown] = useState(0);
+  const [matchError, setMatchError] = useState<string | null>(null);
 
   const { data: savedScholarships } = useSavedScholarships();
   const toggleSaveMutation = useToggleSaveScholarship();
@@ -61,6 +64,28 @@ export default function HomeScreen() {
     fetchData();
   }, []);
 
+  useEffect(() => {
+    if (matchCooldown > 0) {
+      const timer = setTimeout(() => setMatchCooldown(c => c - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [matchCooldown]);
+
+  const handleFindMatches = async () => {
+    if (isMatching || matchCooldown > 0) return;
+    setIsMatching(true);
+    setMatchError(null);
+    try {
+      const m = await aiService.getScholarshipMatches();
+      setMatches(m);
+      setMatchCooldown(30);
+    } catch (e: any) {
+      setMatchError(e?.message ?? "Failed to find matches");
+    } finally {
+      setIsMatching(false);
+    }
+  };
+
   const fetchData = async () => {
     setLoading(true);
     setError(null);
@@ -84,23 +109,28 @@ export default function HomeScreen() {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+      <ImageBackground
+        source={require("../../assets/images/header-home.jpg")}
+        style={[styles.header, { paddingTop: insets.top + 10 }]}
+        imageStyle={{ resizeMode: "cover" }}
+      >
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.primary, opacity: 0.65 }]} />
         <View style={styles.headerLeft}>
           <UserAvatar size={48} style={styles.avatar} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.greeting} numberOfLines={1} ellipsizeMode="tail">Hello, {displayName}!</Text>
-            <Text style={styles.greetingSub}>Your career journey continues.</Text>
+            <Text style={[styles.greeting, { color: '#ffffff' }]} numberOfLines={1} ellipsizeMode="tail">Hello, {displayName}!</Text>
+            <Text style={[styles.greetingSub, { color: 'rgba(255, 255, 255, 0.8)' }]}>Your career journey continues.</Text>
           </View>
         </View>
         <View style={styles.headerRight}>
           <Pressable style={styles.iconBtn} onPress={() => router.push("/notifications")}>
-            <Ionicons name="notifications-outline" size={24} color={colors.primary} />
+            <Ionicons name="notifications-outline" size={24} color="#ffffff" />
           </Pressable>
-          <Pressable style={styles.profileIcon} onPress={() => setMenuVisible(true)}>
-            <Ionicons name="person-outline" size={20} color={colors.primary} />
+          <Pressable style={[styles.profileIcon, { borderColor: '#ffffff' }]} onPress={() => setMenuVisible(true)}>
+            <Ionicons name="person-outline" size={20} color="#ffffff" />
           </Pressable>
         </View>
-      </View>
+      </ImageBackground>
 
       {/* Profile Menu Modal */}
       <Modal
@@ -147,103 +177,166 @@ export default function HomeScreen() {
       </Modal>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* AI Profile Score Card */}
-        <View style={styles.scoreCard}>
-          <View style={styles.scoreBgIcon}>
-            <MaterialCommunityIcons name="brain" size={100} color="rgba(0,0,0,0.03)" />
-          </View>
-          <View style={styles.scoreContent}>
-            <View style={styles.scoreRingContainer}>
-              <CircularProgress
-                percentage={completenessScore}
-                size={64}
-                strokeWidth={6}
-                color="#1b6d24"
-                backgroundColor="#e2e2e7"
-              >
-                <View style={styles.scoreRingInner}>
-                  <Text style={styles.scoreText}>{completenessScore}%</Text>
+        {/* Priority Zone */}
+        {(() => {
+          const urgentTracker = trackers
+            .filter(t => t.deadlineCountdown >= 0 && t.deadlineCountdown <= 14 && (t.status === 'RESEARCHING' || t.status === 'IN_PROGRESS'))
+            .sort((a, b) => a.deadlineCountdown - b.deadlineCountdown)[0];
+
+          if (completenessScore < 100) {
+            return (
+              <Pressable style={[styles.priorityCard, styles.priorityIncomplete]} onPress={handleProfilePress}>
+                <View style={styles.priorityContent}>
+                  <Text style={styles.priorityTitle}>Complete your profile</Text>
+                  <Text style={styles.priorityDesc}>Your profile is {completenessScore}% complete. Finish it to get accurate scholarship matches.</Text>
+                  <View style={styles.priorityAction}>
+                    <Text style={styles.priorityActionText}>Continue Setup</Text>
+                    <Ionicons name="arrow-forward" size={16} color={colors.primary} />
+                  </View>
                 </View>
-              </CircularProgress>
-            </View>
-            <View style={styles.scoreTextContainer}>
-              <Text style={styles.scoreTitle}>Profile Strength</Text>
-              <Text style={styles.scoreDesc}>{completenessScore === 100 ? 'Your profile is complete. Great matches await!' : 'Complete your profile for better scholarship matches.'}</Text>
-              <Pressable style={styles.scoreAction} onPress={handleProfilePress}>
-                <Text style={styles.scoreActionText}>{completenessScore === 100 ? 'View Profile' : 'Complete Profile'}</Text>
-                <Ionicons name="arrow-forward" size={16} color={colors.primary} />
+                <CircularProgress
+                  percentage={completenessScore}
+                  size={64}
+                  strokeWidth={6}
+                  color={colors.primary}
+                  backgroundColor="rgba(27, 109, 36, 0.1)"
+                >
+                  <View style={styles.scoreRingInner}>
+                    <Text style={styles.scoreText}>{completenessScore}%</Text>
+                  </View>
+                </CircularProgress>
               </Pressable>
+            );
+          }
+
+          if (urgentTracker) {
+            return (
+              <Pressable 
+                style={[styles.priorityCard, styles.priorityUrgent]} 
+                onPress={() => router.push({ pathname: '/application/[trackerId]' as any, params: { trackerId: String(urgentTracker.id) } })}
+              >
+                <View style={styles.priorityIconBg}>
+                  <Ionicons name="warning" size={32} color="#ba1a1a" />
+                </View>
+                <View style={styles.priorityContent}>
+                  <Text style={styles.priorityTitle}>Deadline Approaching</Text>
+                  <Text style={styles.priorityDesc}>
+                    <Text style={{ fontFamily: "PlusJakartaSans_700Bold" }}>{urgentTracker.scholarshipName || `Scholarship #${urgentTracker.scholarshipId}`}</Text> closes in {urgentTracker.deadlineCountdown} days. Finish your application!
+                  </Text>
+                  <View style={styles.priorityAction}>
+                    <Text style={[styles.priorityActionText, { color: '#ba1a1a' }]}>Resume Application</Text>
+                    <Ionicons name="arrow-forward" size={16} color="#ba1a1a" />
+                  </View>
+                </View>
+              </Pressable>
+            );
+          }
+
+          return (
+            <View style={[styles.priorityCard, styles.priorityCaughtUp]}>
+              <View style={styles.priorityIconBgSuccess}>
+                <Ionicons name="checkmark-circle" size={32} color="#005312" />
+              </View>
+              <View style={styles.priorityContent}>
+                <Text style={styles.priorityTitle}>You're all caught up</Text>
+                <Text style={styles.priorityDesc}>Your profile is complete and you have no urgent deadlines. Keep exploring!</Text>
+              </View>
             </View>
-          </View>
+          );
+        })()}
+
+        {/* Quick Stats Row */}
+        <View style={styles.quickStatsRow}>
+          <Text style={styles.quickStatsText}>
+            {matches.length} Matches  ·  {trackers.filter(t => t.status === 'RESEARCHING' || t.status === 'IN_PROGRESS').length} In Progress  ·  {savedScholarships?.length ?? 0} Saved
+          </Text>
         </View>
 
         {/* Top Matches (Horizontal) */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Top Matches</Text>
-            <Pressable onPress={() => router.push("/(tabs)/scholarships")}>
-              <Text style={styles.viewAllText}>View All</Text>
-            </Pressable>
-          </View>
-
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
-            {matches.length === 0 ? (
-              <View style={styles.emptyCard}>
-                <Text style={styles.emptyText}>No matches yet. Complete your profile.</Text>
-              </View>
-            ) : (
-              matches.slice(0, 5).map((match) => (
-                <Pressable
-                  key={match.matchId}
-                  style={styles.matchCard}
-                  onPress={() => router.push(`/scholarship/${match.scholarshipId}`)}
-                >
-                  <View style={styles.matchCardTop}>
-                    <View style={styles.matchBadge}>
-                      <Text style={styles.matchBadgeText}>{match.matchScore}% AI Match</Text>
-                    </View>
-                    <Pressable
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        toggleSaveMutation.mutate(match.scholarshipId);
-                      }}
-                      hitSlop={10}
-                    >
-                      <Ionicons
-                        name={savedScholarships?.some(s => s.id === match.scholarshipId) ? "bookmark" : "bookmark-outline"}
-                        size={20}
-                        color={savedScholarships?.some(s => s.id === match.scholarshipId) ? colors.primary : colors.muted}
-                      />
-                    </Pressable>
-                  </View>
-                  <Text style={styles.matchTitle} numberOfLines={2}>{match.scholarshipName || `Scholarship #${match.scholarshipId}`}</Text>
-                  <View style={styles.matchDetails}>
-                    <Ionicons name="cash-outline" size={16} color={colors.muted} />
-                    <Text style={styles.matchDetailsText}>Match Details</Text>
-                  </View>
-                  <View style={styles.matchCardBottom}>
-                    <View style={styles.deadlineBadge}>
-                      <Text style={styles.deadlineBadgeText}>Check deadline</Text>
-                    </View>
-                    <View style={styles.detailsBtn}>
-                      <Text style={styles.detailsBtnText}>Details</Text>
-                      <Ionicons name="chevron-forward" size={16} color={colors.primary} />
-                    </View>
-                  </View>
+        {(matches.length > 0 || completenessScore === 100) && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Top Matches</Text>
+              {matches.length > 0 && (
+                <Pressable onPress={() => router.push("/(tabs)/scholarships")}>
+                  <Text style={styles.viewAllText}>View All</Text>
                 </Pressable>
-              ))
+              )}
+            </View>
+
+            {matches.length > 0 ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
+                {matches.slice(0, 5).map((match) => (
+                  <Pressable
+                    key={match.matchId}
+                    style={styles.matchCard}
+                    onPress={() => router.push(`/scholarship/${match.scholarshipId}`)}
+                  >
+                    <View style={styles.matchCardTop}>
+                      <View style={styles.matchBadge}>
+                        <Text style={styles.matchBadgeText}>{match.matchScore}% AI Match</Text>
+                      </View>
+                      <Pressable
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          toggleSaveMutation.mutate(match.scholarshipId);
+                        }}
+                        hitSlop={10}
+                      >
+                        <Ionicons
+                          name={savedScholarships?.some(s => s.id === match.scholarshipId) ? "bookmark" : "bookmark-outline"}
+                          size={20}
+                          color={savedScholarships?.some(s => s.id === match.scholarshipId) ? colors.primary : colors.muted}
+                        />
+                      </Pressable>
+                    </View>
+                    <Text style={styles.matchTitle} numberOfLines={2}>{match.scholarshipName || `Scholarship #${match.scholarshipId}`}</Text>
+                    <View style={styles.matchDetails}>
+                      <Ionicons name="cash-outline" size={16} color={colors.muted} />
+                      <Text style={styles.matchDetailsText}>Match Details</Text>
+                    </View>
+                    <View style={styles.matchCardBottom}>
+                      <View style={styles.deadlineBadge}>
+                        <Text style={styles.deadlineBadgeText}>Check deadline</Text>
+                      </View>
+                      <View style={styles.detailsBtn}>
+                        <Text style={styles.detailsBtnText}>Details</Text>
+                        <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+                      </View>
+                    </View>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            ) : (
+              <View style={styles.emptyMatchesContainer}>
+                <Ionicons name="search-outline" size={48} color={colors.muted} style={{ marginBottom: 16 }} />
+                <Text style={styles.emptyMatchesTitle}>No matches yet</Text>
+                <Text style={styles.emptyMatchesDesc}>We couldn't find any fresh matches for you. Try searching now.</Text>
+                <Pressable 
+                  style={[styles.findMatchesBtn, (isMatching || matchCooldown > 0) && styles.findMatchesBtnDisabled]} 
+                  onPress={handleFindMatches}
+                  disabled={isMatching || matchCooldown > 0}
+                >
+                  {isMatching ? (
+                    <ActivityIndicator color="#ffffff" size="small" />
+                  ) : (
+                    <Text style={styles.findMatchesBtnText}>
+                      {matchCooldown > 0 ? `Try again in ${matchCooldown}s` : "Find My Matches"}
+                    </Text>
+                  )}
+                </Pressable>
+                {matchError ? <Text style={styles.matchErrorText}>{matchError}</Text> : null}
+              </View>
             )}
-          </ScrollView>
-        </View>
+          </View>
+        )}
 
         {/* Urgent Deadlines (Vertical) */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent Applications</Text>
-          <View style={styles.verticalList}>
-            {trackers.length === 0 ? (
-              <Text style={styles.emptyText}>No applications tracked yet.</Text>
-            ) : (
-              trackers.slice(0, 3).map((tracker) => (
+        {trackers.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Recent Applications</Text>
+            <View style={styles.verticalList}>
+              {trackers.slice(0, 3).map((tracker) => (
                 <Pressable
                   key={tracker.id}
                   style={({ pressed }) => [styles.trackerCard, pressed && { opacity: 0.7, transform: [{ scale: 0.98 }] }]}
@@ -269,25 +362,23 @@ export default function HomeScreen() {
                     <Ionicons name="arrow-forward" size={20} color={colors.primary} />
                   </View>
                 </Pressable>
-              ))
-            )}
+              ))}
+            </View>
           </View>
-        </View>
+        )}
 
-        {/* Academic & Achievement Banner */}
-        <View style={styles.bannerContainer}>
-          <View style={styles.bannerContent}>
-            <Text style={styles.bannerTitle}>Ready for your next step?</Text>
-            <Text style={styles.bannerDesc}>Our AI coach is ready to help you prep for your scholarship interviews.</Text>
-            <Pressable style={styles.bannerBtn} onPress={() => router.push("/ai-essay")}>
-              <Text style={styles.bannerBtnText}>Start Coaching</Text>
-            </Pressable>
+        {/* Compact AI Coach Banner */}
+        <Pressable style={styles.aiCoachSmallCard} onPress={() => router.push("/ai-essay")}>
+          <View style={styles.aiCoachIconBg}>
+            <MaterialCommunityIcons name="brain" size={24} color={colors.primary} />
           </View>
-          <Image
-            source={{ uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuDwvVpPYIcVDTRuB8Ct0vNvt3gLpY1ec1QQchPVzfzHPos_Xhwuf0mBlh4hNt7hEevynqDsBfCgqeH9b-HyQoiu4yhAEclsQcr1OezAZRMz29Rszp0PQQ1ScEdjHJ7x39tBaM7pE4MdEqf14DAja0Jul04JRQfwwrkIDu0tvS0NsCSI9k1QL-sWk8jWAkFtgyWGvOIkqgZAzChsfi1FU-BTsvAi-Q14LJw_s3p8NjOJdYzcxnYby1vaRhpXEbXepD9WS6jI1qs7gfcT" }}
-            style={styles.bannerImg}
-          />
-        </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.aiCoachTitle}>AI Essay Coach</Text>
+            <Text style={styles.aiCoachDesc}>Practice your interview & essay</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.muted} />
+        </Pressable>
+
       </ScrollView>
     </View>
   );
@@ -387,7 +478,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
-    paddingBottom: 100, // Room for bottom tabs
+    paddingBottom: 120, // Room for bottom tabs
   },
   scoreCard: {
     backgroundColor: "#ffffff",
@@ -432,31 +523,92 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: colors.primary,
   },
-  scoreTextContainer: {
+  // Priority Zone Styles
+  priorityCard: {
+    borderRadius: 16,
+    padding: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  priorityIncomplete: {
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "rgba(27, 109, 36, 0.2)",
+  },
+  priorityUrgent: {
+    backgroundColor: "#fff0ec", // very light red/amber
+    borderWidth: 1,
+    borderColor: "#ffdad6",
+  },
+  priorityCaughtUp: {
+    backgroundColor: "#f4fdf4", // very light green
+    borderWidth: 1,
+    borderColor: "#a0f399",
+  },
+  priorityContent: {
     flex: 1,
+    paddingRight: 16,
   },
-  scoreTitle: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
+  priorityTitle: {
+    fontFamily: "PlusJakartaSans_700Bold",
     fontSize: 18,
-    color: colors.primary,
-    marginBottom: 4,
+    color: colors.ink,
+    marginBottom: 6,
   },
-  scoreDesc: {
+  priorityDesc: {
     fontFamily: "BeVietnamPro_400Regular",
     fontSize: 14,
     color: colors.muted,
-    marginBottom: 8,
+    marginBottom: 12,
+    lineHeight: 20,
   },
-  scoreAction: {
+  priorityAction: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
   },
-  scoreActionText: {
-    fontFamily: "BeVietnamPro_600SemiBold",
-    fontSize: 12,
+  priorityActionText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 14,
     color: colors.primary,
   },
+  priorityIconBg: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#ffdad6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  priorityIconBgSuccess: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#a0f399",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  
+  // Quick Stats Row
+  quickStatsRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginVertical: 16,
+    paddingVertical: 8,
+  },
+  quickStatsText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 13,
+    color: colors.muted,
+    letterSpacing: 0.5,
+  },
+
   section: {
     marginBottom: 24,
   },
@@ -479,19 +631,6 @@ const styles = StyleSheet.create({
   horizontalList: {
     gap: 16,
     paddingBottom: 8,
-  },
-  emptyCard: {
-    width: 280,
-    backgroundColor: "#ffffff",
-    padding: 24,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  emptyText: {
-    fontFamily: "BeVietnamPro_400Regular",
-    fontSize: 14,
-    color: colors.muted,
   },
   matchCard: {
     width: 280,
@@ -625,51 +764,92 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  bannerContainer: {
-    backgroundColor: colors.primary,
+  // Compact AI Coach Banner
+  aiCoachSmallCard: {
+    backgroundColor: "#ffffff",
     borderRadius: 16,
-    padding: 24,
+    padding: 16,
     flexDirection: "row",
     alignItems: "center",
-    overflow: "hidden",
+    gap: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
+    marginTop: 8,
+  },
+  aiCoachIconBg: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(27, 109, 36, 0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  aiCoachTitle: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 16,
+    color: colors.primary,
+    marginBottom: 2,
+  },
+  aiCoachDesc: {
+    fontFamily: "BeVietnamPro_400Regular",
+    fontSize: 13,
+    color: colors.muted,
+  },
+  // Empty Matches State
+  emptyMatchesContainer: {
+    backgroundColor: "#ffffff",
+    borderRadius: 16,
+    padding: 32,
+    alignItems: "center",
+    justifyContent: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.04,
     shadowRadius: 12,
     elevation: 2,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.05)",
   },
-  bannerContent: {
-    flex: 1,
-    zIndex: 2,
-  },
-  bannerTitle: {
+  emptyMatchesTitle: {
     fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: 20,
-    color: "#ffffff",
+    fontSize: 18,
+    color: colors.ink,
     marginBottom: 8,
+    textAlign: "center",
   },
-  bannerDesc: {
+  emptyMatchesDesc: {
     fontFamily: "BeVietnamPro_400Regular",
     fontSize: 14,
-    color: "rgba(255, 255, 255, 0.9)",
+    color: colors.muted,
+    textAlign: "center",
     marginBottom: 24,
+    lineHeight: 20,
   },
-  bannerBtn: {
-    backgroundColor: "#1b6d24", // secondary
+  findMatchesBtn: {
+    backgroundColor: colors.primary,
     paddingHorizontal: 24,
-    paddingVertical: 8,
+    paddingVertical: 14,
     borderRadius: 24,
-    alignSelf: "flex-start",
+    minWidth: 180,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  bannerBtnText: {
+  findMatchesBtnDisabled: {
+    backgroundColor: colors.muted,
+  },
+  findMatchesBtnText: {
     fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 14,
+    fontSize: 15,
     color: "#ffffff",
   },
-  bannerImg: {
-    width: 96,
-    height: 120,
-    zIndex: 2,
-    resizeMode: "contain",
+  matchErrorText: {
+    fontFamily: "BeVietnamPro_400Regular",
+    fontSize: 13,
+    color: colors.danger,
+    marginTop: 12,
+    textAlign: "center",
   },
 });

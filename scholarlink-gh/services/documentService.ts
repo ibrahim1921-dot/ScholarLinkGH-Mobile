@@ -32,7 +32,31 @@ export const documentService = {
     }
   },
 
-  async uploadDocument(file: { uri: string; name: string; mimeType?: string | null }, type: string): Promise<DocumentUpload> {
+  async getDocument(id: number): Promise<DocumentUpload> {
+    try {
+      const response = await apiClient.get<DocumentUpload>(`/api/v1/documents/${id}`);
+      return response.data;
+    } catch (error: any) {
+      const message = error.response?.data?.message || error.message || 'Something went wrong';
+      throw new Error(message);
+    }
+  },
+
+  async deleteDocument(id: number): Promise<ApiResponse> {
+    try {
+      const response = await apiClient.delete<ApiResponse>(`/api/v1/documents/${id}`);
+      return response.data;
+    } catch (error: any) {
+      const message = error.response?.data?.message || error.message || 'Something went wrong';
+      throw new Error(message);
+    }
+  },
+
+  async uploadDocument(
+    file: { uri: string; name: string; mimeType?: string | null },
+    type: string,
+    onUploadProgress?: (progressEvent: any) => void
+  ): Promise<DocumentUpload> {
     const form = new FormData();
     form.append('type', type);
     form.append('file', {
@@ -46,6 +70,7 @@ export const documentService = {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
+        onUploadProgress,
       });
       return response.data;
     } catch (error: any) {
