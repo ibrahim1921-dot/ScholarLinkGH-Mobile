@@ -44,4 +44,27 @@ export const profileService = {
       throw new Error(message);
     }
   },
+
+  async uploadProfilePicture(
+    file: { uri: string; name: string; mimeType?: string | null }
+  ): Promise<ApiResponse> {
+    const form = new FormData();
+    form.append('file', {
+      uri: file.uri,
+      name: file.name,
+      type: file.mimeType ?? 'image/jpeg',
+    } as any);
+
+    try {
+      const response = await apiClient.post<ApiResponse>('/api/v1/profile/picture', form, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } catch (error: any) {
+      const message = error.response?.data?.message || error.message || 'Something went wrong';
+      throw new Error(message);
+    }
+  },
 };

@@ -13,6 +13,7 @@ export type AuthResponse = {
   email: string;
   username: string;
   role: string;
+  profilePictureUrl?: string | null;
 };
 
 export type Page<T> = {
@@ -42,6 +43,7 @@ export type StudentProfile = {
   profileImprovementSuggestions?: string | null;
   documentDisclaimerAcceptedAt?: string | null;
   skills?: string[];
+  profilePictureUrl?: string | null;
 };
 
 export type ProfilePayload = {

@@ -20,10 +20,12 @@ interface UserAvatarProps {
 export function UserAvatar({ size = 40, imageUrl, style }: UserAvatarProps) {
   const { user } = useAuth();
   
-  if (imageUrl) {
+  const finalImageUrl = imageUrl || user?.profilePictureUrl;
+
+  if (finalImageUrl) {
     return (
       <Image 
-        source={{ uri: imageUrl }} 
+        source={{ uri: finalImageUrl }} 
         style={[{ width: size, height: size, borderRadius: size / 2 }, style as any]} 
       />
     );

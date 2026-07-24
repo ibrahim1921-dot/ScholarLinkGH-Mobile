@@ -3,16 +3,18 @@ import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useSt
 import { authService, RegisterPayload } from '../services/authService';
 import { authEvents } from '../services/authEvents';
 import { tokenStore } from '../services/tokenStore';
+import { profileService } from '../services/profileService';
 import { AuthResponse } from '../types/api';
 
 type AuthContextValue = {
-  user: Pick<AuthResponse, 'email' | 'username' | 'role'> | null;
+  user: Pick<AuthResponse, 'email' | 'username' | 'role' | 'profilePictureUrl'> | null;
   isBootstrapping: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<void>;
   verifyOtp: (email: string, otpCode: string) => Promise<void>;
   resendOtp: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
+  updateUser: (updates: Partial<AuthContextValue['user']>) => void;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -31,7 +33,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
       try {
         const response = await authService.getMe();
-        setUser({ email: response.email, username: response.username, role: response.role });
+        let profilePictureUrl = null;
+        try {
+          const profile = await profileService.getProfile();
+          profilePictureUrl = profile.profilePictureUrl || null;
+        } catch (e) {
+          // ignore if profile not created yet
+        }
+        setUser({ email: response.email, username: response.username, role: response.role, profilePictureUrl });
       } catch (error) {
         // If /me fails (e.g. token expired and refresh failed), fall back to null
         setUser(null);
@@ -56,7 +65,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
       async signIn(email, password) {
         const response = await authService.login(email, password);
         await tokenStore.setTokens(response.accessToken, response.refreshToken);
-        setUser({ email: response.email, username: response.username, role: response.role });
+        let profilePictureUrl = null;
+        try {
+          const profile = await profileService.getProfile();
+          profilePictureUrl = profile.profilePictureUrl || null;
+        } catch (e) {}
+        setUser({ email: response.email, username: response.username, role: response.role, profilePictureUrl });
       },
       async register(payload) {
         await authService.register(payload);
@@ -64,7 +78,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
       async verifyOtp(email, otpCode) {
         const response = await authService.verifyOtp(email, otpCode);
         await tokenStore.setTokens(response.accessToken, response.refreshToken);
-        setUser({ email: response.email, username: response.username, role: response.role });
+        let profilePictureUrl = null;
+        try {
+          const profile = await profileService.getProfile();
+          profilePictureUrl = profile.profilePictureUrl || null;
+        } catch (e) {}
+        setUser({ email: response.email, username: response.username, role: response.role, profilePictureUrl });
       },
       async resendOtp(email) {
         await authService.resendOtp(email);
@@ -76,6 +95,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
           await tokenStore.clearTokens();
           setUser(null);
         }
+      },
+      updateUser(updates) {
+        setUser((prev) => (prev ? { ...prev, ...updates } : null));
       },
     }),
     [isBootstrapping, user],

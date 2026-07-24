@@ -16,21 +16,71 @@ import Constants from "expo-constants";
 import { colors } from "../constants/colors";
 import { useAuth } from "../hooks/useAuth";
 import { UserAvatar } from "../components/UserAvatar";
+import { profileService } from "../services/profileService";
+import { StudentProfile } from "../types/api";
+import { useState, useEffect } from "react";
+import * as ImagePicker from "expo-image-picker";
 
 const SETTINGS_ITEMS = [
-  { id: 'personal', title: 'Personal Information', icon: 'person-outline', route: '/profile-summary' },
   { id: 'vault', title: 'Document Vault', icon: 'folder-open-outline', route: '/documents' },
-  { id: 'notifications', title: 'Notifications', icon: 'notifications-outline', route: '/notifications' },
   { id: 'security', title: 'Security & Password', icon: 'lock-closed-outline', disabled: true },
 ];
 
 export default function ProfileSettingsScreen() {
   const insets = useSafeAreaInsets();
-  const { user, signOut } = useAuth();
+  const { user, signOut, updateUser } = useAuth();
+  const [profile, setProfile] = useState<StudentProfile | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  useEffect(() => {
+    loadProfile();
+  }, []);
+
+  const loadProfile = async () => {
+    try {
+      const data = await profileService.getProfile();
+      setProfile(data);
+    } catch (e) {
+      console.warn("Failed to load profile:", e);
+    }
+  };
 
   const handleLogout = async () => {
     await signOut();
     // Redirect handled by root layout
+  };
+
+  const pickImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        setUploading(true);
+        const res = await profileService.uploadProfilePicture({
+          uri: asset.uri,
+          name: asset.fileName || 'profile.jpg',
+          mimeType: asset.mimeType || 'image/jpeg',
+        });
+        
+        // Optimistically update the UI, or just reload profile
+        if (res.success && res.message) {
+           setProfile(prev => prev ? { ...prev, profilePictureUrl: res.message } : null);
+           updateUser({ profilePictureUrl: res.message });
+        } else {
+           Alert.alert("Error", "Could not upload profile picture.");
+        }
+      }
+    } catch (error: any) {
+      Alert.alert("Upload Failed", error.message || "Something went wrong while uploading the picture.");
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
@@ -51,8 +101,12 @@ export default function ProfileSettingsScreen() {
         {/* Profile Header */}
         <View style={styles.profileHeader}>
           <View style={styles.avatarContainer}>
-            <UserAvatar size={128} style={styles.avatar} />
-            <Pressable style={styles.editAvatarButton}>
+            <UserAvatar size={128} style={styles.avatar} imageUrl={profile?.profilePictureUrl} />
+            <Pressable 
+              style={[styles.editAvatarButton, uploading && { opacity: 0.5 }]} 
+              onPress={pickImage}
+              disabled={uploading}
+            >
               <Ionicons name="pencil" size={16} color="#ffffff" />
             </Pressable>
           </View>
@@ -60,10 +114,13 @@ export default function ProfileSettingsScreen() {
           <Text style={styles.userName}>{user?.username || "Student"}</Text>
           <View style={styles.locationContainer}>
             <Ionicons name="location" size={16} color={colors.muted} />
-            <Text style={styles.locationText}>Location not set</Text>
+            <Text style={styles.locationText}>{profile?.countryPreference || "Location not set"}</Text>
           </View>
 
-          <Pressable style={styles.editProfileButton}>
+          <Pressable 
+            style={styles.editProfileButton}
+            onPress={() => router.push('/profile-summary')}
+          >
             <Text style={styles.editProfileText}>Edit Profile</Text>
           </Pressable>
         </View>
