@@ -12,6 +12,16 @@ export const aiService = {
     }
   },
 
+  async checkEligibility(scholarshipId: number): Promise<any> {
+    try {
+      const response = await apiClient.get(`/api/v1/scholarships/${scholarshipId}/eligibility`);
+      return response.data;
+    } catch (error: any) {
+      const message = error.response?.data?.message || error.message || 'Something went wrong';
+      throw new Error(message);
+    }
+  },
+
   async generatePersonalStatement(scholarshipId?: number, keyPoints: string[] = []): Promise<string> {
     try {
       const response = await apiClient.post<ApiResponse>('/api/v1/ai/personal-statement', {
@@ -58,7 +68,7 @@ export const aiService = {
     }
   },
 
-  async generateCoverLetter(jobTitle: string, company: string, jobDescription: string): Promise<string> {
+  async generateCoverLetter(jobTitle: string = "", company: string = "", jobDescription: string = ""): Promise<string> {
     try {
       const response = await apiClient.post<ApiResponse>('/api/v1/ai/cover-letter', {
         job_title: jobTitle,
@@ -69,6 +79,25 @@ export const aiService = {
     } catch (error: any) {
       const message = error.response?.data?.message || error.message || 'Something went wrong';
       throw new Error(message);
+    }
+  },
+
+  async askAssistant(message: string, documentId?: number): Promise<string> {
+    try {
+      const payload: any = { message };
+      if (documentId) {
+        payload.document_id = documentId;
+      }
+      const response = await apiClient.post<ApiResponse>('/api/v1/ai/ask', payload);
+      return response.data.message;
+    } catch (error: any) {
+      console.error("askAssistant error:", error);
+      if (error.response) {
+        console.error("askAssistant error response status:", error.response.status);
+        console.error("askAssistant error response data:", error.response.data);
+      }
+      const errMessage = error.response?.data?.message || error.message || 'Something went wrong';
+      throw new Error(errMessage);
     }
   },
 };

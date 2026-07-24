@@ -14,6 +14,7 @@ import { colors } from '../constants/colors';
 
 export type ActiveFilter =
   | { type: 'saved' }
+  | { type: 'matches' }
   | { type: 'country'; value: string }
   | { type: 'field'; value: string }
   | { type: 'status'; value: string }
@@ -125,6 +126,33 @@ export function FiltersSheet({
                 </Text>
               </View>
               {isActive('saved') && (
+                <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
+              )}
+            </Pressable>
+
+            <Pressable
+              style={[styles.optionRow, isActive('matches') && styles.optionRowActive]}
+              onPress={() =>
+                handleSelect(isActive('matches') ? null : { type: 'matches' })
+              }
+            >
+              <View style={styles.optionContent}>
+                <Ionicons
+                  name={isActive('matches') ? 'sparkles' : 'sparkles-outline'}
+                  size={18}
+                  color={isActive('matches') ? colors.primary : colors.muted}
+                  style={{ marginRight: 10 }}
+                />
+                <Text
+                  style={[
+                    styles.optionText,
+                    isActive('matches') && styles.optionTextActive,
+                  ]}
+                >
+                  AI Matches
+                </Text>
+              </View>
+              {isActive('matches') && (
                 <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
               )}
             </Pressable>

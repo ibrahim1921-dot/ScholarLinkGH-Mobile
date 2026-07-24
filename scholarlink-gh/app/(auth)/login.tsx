@@ -16,6 +16,7 @@ export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const submit = async () => {
     if (!email.trim() || !password) return;
@@ -36,7 +37,7 @@ export default function LoginScreen() {
         <View style={styles.headerContainer}>
           <View style={styles.logoContainer}>
             <Image 
-              source={require("../../assets/images/scholarlink_logo.png")} 
+              source={require("../../assets/images/logo-full.png")} 
               style={styles.logo} 
               resizeMode="contain" 
             />
@@ -59,11 +60,16 @@ export default function LoginScreen() {
             label="Password"
             value={password}
             onChangeText={setPassword}
-            secureTextEntry
+            secureTextEntry={!showPassword}
             placeholder=" "
+            rightIcon={
+              <Pressable onPress={() => setShowPassword(!showPassword)}>
+                <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#737780" />
+              </Pressable>
+            }
           />
           <View style={styles.forgotPasswordContainer}>
-            <Link href="/(auth)/register" style={styles.forgotPasswordLink}>
+            <Link href="/(auth)/forgot-password" style={styles.forgotPasswordLink}>
               Forgot Password?
             </Link>
           </View>

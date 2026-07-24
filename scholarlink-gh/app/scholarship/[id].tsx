@@ -4,12 +4,16 @@ import { useLocalSearchParams, router, Stack } from 'expo-router';
 import { useState } from 'react';
 import { Alert, ImageBackground, Linking, StyleSheet, Text, View, ScrollView, Pressable, Platform, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useQueryClient } from '@tanstack/react-query';
 
 import { Screen } from '../../components/Screen';
+import { CountdownBadge } from '../../components/CountdownBadge';
 import { ErrorState, LoadingState } from '../../components/StateView';
 import { colors } from '../../constants/colors';
 import { trackerService } from '../../services/trackerService';
 import { useScholarshipDetail, useScholarshipEligibility, useSavedScholarships, useToggleSaveScholarship, useReportScholarship } from '../../hooks/useScholarship';
+import { useScholarshipApplyFlow } from '../../hooks/useScholarshipApplyFlow';
+import { ScholarshipApplyModals } from '../../components/ScholarshipApplyModals';
 
 export default function ScholarshipDetailScreen() {
   const insets = useSafeAreaInsets();
@@ -56,23 +60,8 @@ export default function ScholarshipDetailScreen() {
 
   const loading = isScholarshipLoading;
   const error = isScholarshipError ? (scholarshipError as Error)?.message ?? 'Failed to load scholarship' : null;
-  const [tracking, setTracking] = useState(false);
-
-  const handleTrack = async () => {
-    setTracking(true);
-    try {
-      await trackerService.createTracker(scholarshipId);
-      Alert.alert('Tracked!', 'Scholarship added to your applications tracker.');
-    } catch (e: any) {
-      if (e?.message === 'This scholarship is already in your tracker.') {
-        Alert.alert('Already Tracked', e.message);
-      } else {
-        Alert.alert('Error', e?.message ?? 'Could not track');
-      }
-    } finally {
-      setTracking(false);
-    }
-  };
+  const queryClient = useQueryClient();
+  const applyFlow = useScholarshipApplyFlow();
 
   if (loading) return <Screen scroll={false}><LoadingState /></Screen>;
   if (error || !scholarship) return <Screen scroll={false}><ErrorState message={error ?? 'Not found'} /></Screen>;
@@ -140,18 +129,7 @@ export default function ScholarshipDetailScreen() {
                 </View>
               )}
             </View>
-            {scholarship.daysUntilDeadline != null && (
-              <View style={styles.deadlineBadge}>
-                <Ionicons name="time" size={14} color="#ffffff" style={{ marginRight: 4 }} />
-                <Text style={styles.deadlineBadgeText}>
-                  {scholarship.daysUntilDeadline < 0
-                    ? 'Expired'
-                    : scholarship.daysUntilDeadline === 0
-                    ? 'Closing today'
-                    : `${scholarship.daysUntilDeadline} days left`}
-                </Text>
-              </View>
-            )}
+            <CountdownBadge days={scholarship.daysUntilDeadline} />
           </View>
           <Text style={styles.heroTitle}>{scholarship.name}</Text>
           <Text style={styles.heroSubtitle}>
@@ -188,47 +166,42 @@ export default function ScholarshipDetailScreen() {
                 </View>
               )}
 
-              {eligibility?.criteria_met?.map((criterion, index) => (
-                <View key={`met-${index}`} style={styles.checklistItem}>
-                  <View style={styles.checklistLeft}>
-                    <View style={styles.checkIconBox}>
-                      <Ionicons name="checkmark-circle" size={20} color="#1b6d24" />
+              {eligibility?.criteria ? (
+                eligibility.criteria.length > 0 ? (
+                  eligibility.criteria.map((criterion, index) => (
+                    <View key={`criterion-${index}`} style={styles.checklistItem}>
+                      <View style={styles.checklistLeft}>
+                        <View style={criterion.met ? styles.checkIconBox : styles.reviewIconBox}>
+                          <Ionicons name={criterion.met ? "checkmark-circle" : "close-circle"} size={20} color={criterion.met ? "#1b6d24" : "#ba1a1a"} />
+                        </View>
+                        <View style={{ flex: 1, paddingRight: 8 }}>
+                          <Text style={[styles.checklistText, { fontFamily: 'PlusJakartaSans_600SemiBold', marginBottom: 4 }]}>
+                            {criterion.label}
+                          </Text>
+                          <Text style={[styles.checklistText, { fontSize: 13, color: colors.muted }]}>
+                            {criterion.reason}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={criterion.met ? styles.statusBadgeMet : styles.statusBadgeReview}>
+                        <Text style={criterion.met ? styles.statusBadgeTextMet : styles.statusBadgeTextReview}>
+                          {criterion.met ? 'Met' : 'Missing'}
+                        </Text>
+                      </View>
                     </View>
-                    <Text style={styles.checklistText}>{criterion}</Text>
+                  ))
+                ) : (
+                  <View style={styles.checklistItem}>
+                    <Text style={styles.checklistText}>No eligibility criteria available.</Text>
                   </View>
-                  <View style={styles.statusBadgeMet}>
-                    <Text style={styles.statusBadgeTextMet}>Met</Text>
-                  </View>
+                )
+              ) : eligibility?.criteria_met || eligibility?.criteria_missing ? (
+                <View style={styles.checklistItem}>
+                  <Text style={[styles.checklistText, { color: colors.muted }]}>
+                    Eligibility information format is outdated. Please update your profile to run a new check.
+                  </Text>
                 </View>
-              ))}
-
-              {eligibility?.criteria_missing?.map((criterion, index) => (
-                <View key={`missing-${index}`} style={styles.checklistItem}>
-                  <View style={styles.checklistLeft}>
-                    <View style={styles.reviewIconBox}>
-                      <Ionicons name="close-circle" size={20} color="#ba1a1a" />
-                    </View>
-                    <Text style={styles.checklistText}>{criterion}</Text>
-                  </View>
-                  <View style={styles.statusBadgeReview}>
-                    <Text style={styles.statusBadgeTextReview}>Missing</Text>
-                  </View>
-                </View>
-              ))}
-              
-              {eligibility?.actions_required?.map((action, index) => (
-                <View key={`action-${index}`} style={styles.checklistItem}>
-                  <View style={styles.checklistLeft}>
-                    <View style={styles.reviewIconBox}>
-                      <Ionicons name="information-circle" size={20} color="#723610" />
-                    </View>
-                    <Text style={styles.checklistText}>{action}</Text>
-                  </View>
-                  <View style={styles.statusBadgeReview}>
-                    <Text style={styles.statusBadgeTextReview}>Action Req.</Text>
-                  </View>
-                </View>
-              ))}
+              ) : null}
             </View>
           </View>
         )}
@@ -279,9 +252,6 @@ export default function ScholarshipDetailScreen() {
             color={savedScholarships?.some(s => s.id === scholarshipId) ? colors.primary : colors.primary} 
           />
         </Pressable>
-        <Pressable style={styles.actionBtnSecondary} onPress={handleTrack} disabled={tracking}>
-          <Ionicons name={tracking ? "hourglass-outline" : "stats-chart-outline"} size={24} color={colors.primary} />
-        </Pressable>
         {(() => {
           const isClosed = scholarship.status === 'CLOSED';
           const isFull = scholarship.status === 'FULL';
@@ -299,46 +269,7 @@ export default function ScholarshipDetailScreen() {
             <Pressable 
               style={[styles.actionBtnPrimary, isDisabled && styles.actionBtnDisabled]} 
               disabled={isDisabled}
-              onPress={() => {
-                const openLink = () => {
-                  try {
-                    let url = scholarship.officialLink;
-                    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-                      url = 'https://' + url;
-                    }
-                    Linking.openURL(url).catch(() => Alert.alert('Error', "Couldn't open link"));
-                  } catch (e) {
-                    Alert.alert('Error', "Couldn't open link");
-                  }
-                };
-
-                if (scholarship.allowsAssistedApplication) {
-                  Alert.alert(
-                    'Choose Application Method',
-                    'How would you like to apply for this scholarship?',
-                    [
-                      {
-                        text: 'Apply Directly (External Portal)',
-                        onPress: openLink
-                      },
-                      {
-                        text: 'Apply via ScholarLink GH (Assisted)',
-                        onPress: async () => {
-                          try {
-                            await trackerService.createTracker(scholarshipId, 'IN_PROGRESS', 'ASSISTED');
-                            Alert.alert('Assisted Application', 'Our agency team will contact you to collect your documents and apply on your behalf.');
-                          } catch (e: any) {
-                            Alert.alert('Error', e?.message ?? 'Could not create application tracker');
-                          }
-                        }
-                      },
-                      { text: 'Cancel', style: 'cancel' }
-                    ]
-                  );
-                } else {
-                  openLink();
-                }
-              }}
+              onPress={() => applyFlow.handleApply(scholarship)}
             >
               <Text style={styles.actionBtnPrimaryText}>
                 {isClosed ? 'Applications closed' : isFull ? 'Position full' : 'Apply Now'}
@@ -348,6 +279,8 @@ export default function ScholarshipDetailScreen() {
           );
         })()}
       </View>
+      
+      <ScholarshipApplyModals {...applyFlow} />
     </View>
   );
 }
@@ -417,19 +350,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
-  },
-  deadlineBadge: {
-    backgroundColor: '#ba1a1a', // error
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  deadlineBadgeText: {
-    fontFamily: 'BeVietnamPro_600SemiBold',
-    fontSize: 12,
-    color: '#ffffff',
   },
   heroTitle: {
     fontFamily: 'PlusJakartaSans_800ExtraBold',

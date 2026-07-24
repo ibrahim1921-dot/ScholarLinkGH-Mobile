@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { StyleSheet, Text, View, Image, ScrollView, Pressable, Modal, ImageBackground, ActivityIndicator } from "react-native";
+import { StyleSheet, Text, View, ScrollView, Pressable, Modal, ImageBackground } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -11,12 +11,13 @@ import { UserAvatar } from "../../components/UserAvatar";
 import { CircularProgress } from "../../components/CircularProgress";
 import { colors } from "../../constants/colors";
 import { useAuth } from "../../hooks/useAuth";
-import { aiService } from "../../services/aiService";
 import { trackerService } from "../../services/trackerService";
 import { profileService } from "../../services/profileService";
-import { ApplicationTracker, ScholarshipMatch } from "../../types/api";
+import { ApplicationTracker } from "../../types/api";
 import { useQuery } from "@tanstack/react-query";
-import { useSavedScholarships, useToggleSaveScholarship } from "../../hooks/useScholarship";
+import { useSavedScholarships, useScholarshipMatches } from "../../hooks/useScholarship";
+import { useUnreadNotificationCount } from "../../hooks/useNotifications";
+import { ScholarshipCard } from "../../components/ScholarshipCard";
 
 export default function HomeScreen() {
   const { user, signOut } = useAuth();
@@ -30,17 +31,14 @@ export default function HomeScreen() {
     }
     return 'Student';
   })();
-  const [matches, setMatches] = useState<ScholarshipMatch[]>([]);
   const [trackers, setTrackers] = useState<ApplicationTracker[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [menuVisible, setMenuVisible] = useState(false);
-  const [isMatching, setIsMatching] = useState(false);
-  const [matchCooldown, setMatchCooldown] = useState(0);
-  const [matchError, setMatchError] = useState<string | null>(null);
 
   const { data: savedScholarships } = useSavedScholarships();
-  const toggleSaveMutation = useToggleSaveScholarship();
+  const { data: matches = [] } = useScholarshipMatches();
+  const { data: unreadCount = 0 } = useUnreadNotificationCount();
 
   const { data: completenessData } = useQuery({
     queryKey: ['profileCompleteness'],
@@ -64,37 +62,11 @@ export default function HomeScreen() {
     fetchData();
   }, []);
 
-  useEffect(() => {
-    if (matchCooldown > 0) {
-      const timer = setTimeout(() => setMatchCooldown(c => c - 1), 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [matchCooldown]);
-
-  const handleFindMatches = async () => {
-    if (isMatching || matchCooldown > 0) return;
-    setIsMatching(true);
-    setMatchError(null);
-    try {
-      const m = await aiService.getScholarshipMatches();
-      setMatches(m);
-      setMatchCooldown(30);
-    } catch (e: any) {
-      setMatchError(e?.message ?? "Failed to find matches");
-    } finally {
-      setIsMatching(false);
-    }
-  };
-
   const fetchData = async () => {
     setLoading(true);
     setError(null);
     try {
-      const [m, t] = await Promise.all([
-        aiService.getScholarshipMatches().catch(() => []),
-        trackerService.getTrackers().catch(() => []),
-      ]);
-      setMatches(m);
+      const t = await trackerService.getTrackers().catch(() => []);
       setTrackers(t);
     } catch (e: any) {
       setError(e?.message ?? "Something went wrong");
@@ -125,6 +97,7 @@ export default function HomeScreen() {
         <View style={styles.headerRight}>
           <Pressable style={styles.iconBtn} onPress={() => router.push("/notifications")}>
             <Ionicons name="notifications-outline" size={24} color="#ffffff" />
+            {unreadCount > 0 && <View style={styles.badgeDot} />}
           </Pressable>
           <Pressable style={[styles.profileIcon, { borderColor: '#ffffff' }]} onPress={() => setMenuVisible(true)}>
             <Ionicons name="person-outline" size={20} color="#ffffff" />
@@ -143,19 +116,23 @@ export default function HomeScreen() {
           <View style={[styles.menuContainer, { top: insets.top + 60 }]}>
             <Pressable
               style={styles.menuItem}
-              onPress={() => { setMenuVisible(false); router.push("/profile-settings"); }}
+              onPress={() => { setMenuVisible(false); router.push("/profile-summary"); }}
             >
               <Ionicons name="person-outline" size={20} color={colors.primary} />
               <Text style={styles.menuItemText}>View Profile</Text>
             </Pressable>
-            <View style={styles.menuDivider} />
-            <Pressable
-              style={styles.menuItem}
-              onPress={handleProfilePress}
-            >
-              <Ionicons name="create-outline" size={20} color={colors.primary} />
-              <Text style={styles.menuItemText}>Complete Profile</Text>
-            </Pressable>
+            {completenessScore < 100 && (
+              <>
+                <View style={styles.menuDivider} />
+                <Pressable
+                  style={styles.menuItem}
+                  onPress={handleProfilePress}
+                >
+                  <Ionicons name="create-outline" size={20} color={colors.primary} />
+                  <Text style={styles.menuItemText}>Complete Profile</Text>
+                </Pressable>
+              </>
+            )}
             <View style={styles.menuDivider} />
             <Pressable
               style={styles.menuItem}
@@ -253,81 +230,25 @@ export default function HomeScreen() {
         </View>
 
         {/* Top Matches (Horizontal) */}
-        {(matches.length > 0 || completenessScore === 100) && (
+        {matches.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Top Matches</Text>
-              {matches.length > 0 && (
-                <Pressable onPress={() => router.push("/(tabs)/scholarships")}>
-                  <Text style={styles.viewAllText}>View All</Text>
-                </Pressable>
-              )}
+              <Pressable onPress={() => router.push("/(tabs)/scholarships?filter=matches")}>
+                <Text style={styles.viewAllText}>View All</Text>
+              </Pressable>
             </View>
 
-            {matches.length > 0 ? (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
-                {matches.slice(0, 5).map((match) => (
-                  <Pressable
-                    key={match.matchId}
-                    style={styles.matchCard}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
+              {matches.slice(0, 5).map((match) => (
+                <View key={match.matchId} style={styles.carouselCardWrapper}>
+                  <ScholarshipCard
+                    match={match}
                     onPress={() => router.push(`/scholarship/${match.scholarshipId}`)}
-                  >
-                    <View style={styles.matchCardTop}>
-                      <View style={styles.matchBadge}>
-                        <Text style={styles.matchBadgeText}>{match.matchScore}% AI Match</Text>
-                      </View>
-                      <Pressable
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          toggleSaveMutation.mutate(match.scholarshipId);
-                        }}
-                        hitSlop={10}
-                      >
-                        <Ionicons
-                          name={savedScholarships?.some(s => s.id === match.scholarshipId) ? "bookmark" : "bookmark-outline"}
-                          size={20}
-                          color={savedScholarships?.some(s => s.id === match.scholarshipId) ? colors.primary : colors.muted}
-                        />
-                      </Pressable>
-                    </View>
-                    <Text style={styles.matchTitle} numberOfLines={2}>{match.scholarshipName || `Scholarship #${match.scholarshipId}`}</Text>
-                    <View style={styles.matchDetails}>
-                      <Ionicons name="cash-outline" size={16} color={colors.muted} />
-                      <Text style={styles.matchDetailsText}>Match Details</Text>
-                    </View>
-                    <View style={styles.matchCardBottom}>
-                      <View style={styles.deadlineBadge}>
-                        <Text style={styles.deadlineBadgeText}>Check deadline</Text>
-                      </View>
-                      <View style={styles.detailsBtn}>
-                        <Text style={styles.detailsBtnText}>Details</Text>
-                        <Ionicons name="chevron-forward" size={16} color={colors.primary} />
-                      </View>
-                    </View>
-                  </Pressable>
-                ))}
-              </ScrollView>
-            ) : (
-              <View style={styles.emptyMatchesContainer}>
-                <Ionicons name="search-outline" size={48} color={colors.muted} style={{ marginBottom: 16 }} />
-                <Text style={styles.emptyMatchesTitle}>No matches yet</Text>
-                <Text style={styles.emptyMatchesDesc}>We couldn't find any fresh matches for you. Try searching now.</Text>
-                <Pressable 
-                  style={[styles.findMatchesBtn, (isMatching || matchCooldown > 0) && styles.findMatchesBtnDisabled]} 
-                  onPress={handleFindMatches}
-                  disabled={isMatching || matchCooldown > 0}
-                >
-                  {isMatching ? (
-                    <ActivityIndicator color="#ffffff" size="small" />
-                  ) : (
-                    <Text style={styles.findMatchesBtnText}>
-                      {matchCooldown > 0 ? `Try again in ${matchCooldown}s` : "Find My Matches"}
-                    </Text>
-                  )}
-                </Pressable>
-                {matchError ? <Text style={styles.matchErrorText}>{matchError}</Text> : null}
-              </View>
-            )}
+                  />
+                </View>
+              ))}
+            </ScrollView>
           </View>
         )}
 
@@ -350,8 +271,8 @@ export default function HomeScreen() {
                         color={tracker.status === 'AWARDED' ? "#005312" : tracker.status === 'REJECTED' ? "#ba1a1a" : "#723610"}
                       />
                     </View>
-                    <View>
-                      <Text style={styles.trackerTitle}>{tracker.scholarshipName || `Scholarship #${tracker.scholarshipId}`}</Text>
+                    <View style={{ flex: 1, paddingRight: 12 }}>
+                      <Text style={styles.trackerTitle} numberOfLines={1} ellipsizeMode="tail">{tracker.scholarshipName || `Scholarship #${tracker.scholarshipId}`}</Text>
                       <View style={styles.trackerStatusRow}>
                         <Ionicons name="information-circle" size={14} color={colors.muted} />
                         <Text style={styles.trackerStatusText}>{tracker.status}</Text>
@@ -432,6 +353,17 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
+  },
+  badgeDot: {
+    position: 'absolute',
+    top: 12,
+    right: 14,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.danger,
+    borderWidth: 1.5,
+    borderColor: '#ffffff',
   },
   profileIcon: {
     width: 36,
@@ -632,81 +564,8 @@ const styles = StyleSheet.create({
     gap: 16,
     paddingBottom: 8,
   },
-  matchCard: {
+  carouselCardWrapper: {
     width: 280,
-    backgroundColor: "#ffffff",
-    borderRadius: 16,
-    padding: 16,
-    borderTopWidth: 4,
-    borderTopColor: colors.primary,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 12,
-    elevation: 2,
-    justifyContent: "space-between",
-  },
-  matchCardTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 16,
-  },
-  matchBadge: {
-    backgroundColor: "#a0f399", // secondary-container
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  matchBadgeText: {
-    fontFamily: "BeVietnamPro_600SemiBold",
-    fontSize: 12,
-    color: "#005312",
-  },
-  matchTitle: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 18,
-    color: colors.primary,
-    minHeight: 48,
-    marginBottom: 8,
-  },
-  matchDetails: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginBottom: 16,
-  },
-  matchDetailsText: {
-    fontFamily: "BeVietnamPro_600SemiBold",
-    fontSize: 12,
-    color: colors.muted,
-  },
-  matchCardBottom: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: "auto",
-  },
-  deadlineBadge: {
-    backgroundColor: "#ffdbca", // warning-container (amber)
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  deadlineBadgeText: {
-    fontFamily: "BeVietnamPro_600SemiBold",
-    fontSize: 12,
-    color: "#723610", // on-warning-container
-  },
-  detailsBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 2,
-  },
-  detailsBtnText: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 14,
-    color: colors.primary,
   },
   verticalList: {
     gap: 16,
@@ -728,6 +587,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 16,
+    flex: 1,
   },
   trackerIconBox: {
     width: 48,
@@ -798,58 +658,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.muted,
   },
-  // Empty Matches State
-  emptyMatchesContainer: {
-    backgroundColor: "#ffffff",
-    borderRadius: 16,
-    padding: 32,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 12,
-    elevation: 2,
-    borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.05)",
-  },
-  emptyMatchesTitle: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: 18,
-    color: colors.ink,
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  emptyMatchesDesc: {
-    fontFamily: "BeVietnamPro_400Regular",
-    fontSize: 14,
-    color: colors.muted,
-    textAlign: "center",
-    marginBottom: 24,
-    lineHeight: 20,
-  },
-  findMatchesBtn: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 24,
-    minWidth: 180,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  findMatchesBtnDisabled: {
-    backgroundColor: colors.muted,
-  },
-  findMatchesBtnText: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 15,
-    color: "#ffffff",
-  },
-  matchErrorText: {
-    fontFamily: "BeVietnamPro_400Regular",
-    fontSize: 13,
-    color: colors.danger,
-    marginTop: 12,
-    textAlign: "center",
-  },
+
 });

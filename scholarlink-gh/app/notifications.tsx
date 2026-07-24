@@ -1,41 +1,40 @@
-import { router, Stack } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { router } from "expo-router";
+import { useCallback, useMemo } from "react";
 import {
   StyleSheet,
   Text,
   View,
   ScrollView,
   Pressable,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { colors } from "../constants/colors";
+import { Notification } from "../types/api";
 import {
-  getNotifications,
-  subscribeToNotifications,
-  markNotificationRead,
-  markAllRead,
-  InAppNotification,
-} from "../services/notificationService";
+  useNotificationsList,
+  useUnreadNotificationCount,
+  useMarkNotificationRead,
+  useMarkAllNotificationsRead,
+} from "../hooks/useNotifications";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-type NotificationType = "alert" | "success" | "match" | "info";
-
-function classifyNotification(n: InAppNotification): NotificationType {
-  const type = (n.data?.type as string) ?? "";
+function classifyNotification(n: Notification) {
+  const type = n.type || "";
   if (type === "DEADLINE_ALERT") return "alert";
   if (type === "NEW_MATCH") return "match";
   if (type === "WEEKLY_DIGEST") return "info";
   if (type.includes("SUCCESS") || type.includes("VERIFIED")) return "success";
-  // Default based on keywords in title
   if (n.title.toLowerCase().includes("deadline")) return "alert";
   if (n.title.toLowerCase().includes("match")) return "match";
   return "info";
 }
 
-function formatTimestamp(date: Date): string {
+function formatTimestamp(dateStr: string): string {
+  const date = new Date(dateStr);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffMin = Math.floor(diffMs / 60000);
@@ -49,19 +48,24 @@ function formatTimestamp(date: Date): string {
   return date.toLocaleDateString();
 }
 
-function groupNotifications(notifications: InAppNotification[]) {
-  const today: InAppNotification[] = [];
-  const yesterday: InAppNotification[] = [];
-  const earlier: InAppNotification[] = [];
+function groupNotifications(notifications: Notification[]) {
+  const today: Notification[] = [];
+  const yesterday: Notification[] = [];
+  const earlier: Notification[] = [];
 
   const now = new Date();
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const startOfYesterday = new Date(startOfToday.getTime() - 86400000);
 
   for (const n of notifications) {
-    if (n.receivedAt >= startOfToday) {
+    // Backend returns LocalDateTime (e.g. "2026-07-22T08:00:00"). 
+    // Append 'Z' to force UTC/GMT parsing to avoid device timezone shift.
+    const dateStr = n.createdAt.endsWith('Z') ? n.createdAt : n.createdAt + 'Z';
+    const receivedAt = new Date(dateStr);
+    
+    if (receivedAt >= startOfToday) {
       today.push(n);
-    } else if (n.receivedAt >= startOfYesterday) {
+    } else if (receivedAt >= startOfYesterday) {
       yesterday.push(n);
     } else {
       earlier.push(n);
@@ -73,7 +77,7 @@ function groupNotifications(notifications: InAppNotification[]) {
 
 // ── Style helper ─────────────────────────────────────────────────────────────
 
-const getNotificationStyle = (type: NotificationType) => {
+const getNotificationStyle = (type: string) => {
   switch (type) {
     case "alert":
       return {
@@ -113,7 +117,7 @@ const NotificationCard = ({
   item,
   onPress,
 }: {
-  item: InAppNotification;
+  item: Notification;
   onPress: () => void;
 }) => {
   const type = classifyNotification(item);
@@ -137,7 +141,7 @@ const NotificationCard = ({
           <Text style={[styles.cardTitle, !item.read && styles.cardTitleUnread]}>
             {item.title}
           </Text>
-          <Text style={styles.cardTime}>{formatTimestamp(item.receivedAt)}</Text>
+          <Text style={styles.cardTime}>{formatTimestamp(item.createdAt)}</Text>
         </View>
         <Text style={styles.cardMessage}>{item.body}</Text>
         {!item.read && (
@@ -152,29 +156,47 @@ const NotificationCard = ({
 
 export default function NotificationsScreen() {
   const insets = useSafeAreaInsets();
-  const [notifications, setNotifications] = useState<InAppNotification[]>(
-    getNotifications
-  );
+  
+  const { 
+    data, 
+    isLoading, 
+    isFetchingNextPage, 
+    hasNextPage, 
+    fetchNextPage 
+  } = useNotificationsList();
+  
+  const { data: unreadCount = 0 } = useUnreadNotificationCount();
+  const markRead = useMarkNotificationRead();
+  const markAllRead = useMarkAllNotificationsRead();
 
-  // Re-render when the in-memory store changes
-  useEffect(() => {
-    const unsubscribe = subscribeToNotifications(() => {
-      setNotifications([...getNotifications()]);
-    });
-    return unsubscribe;
-  }, []);
+  const allNotifications = useMemo(() => {
+    return data?.pages.flatMap((page) => page.content) || [];
+  }, [data]);
 
-  const { today, yesterday, earlier } = groupNotifications(notifications);
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const { today, yesterday, earlier } = groupNotifications(allNotifications);
 
-  const handlePress = useCallback((item: InAppNotification) => {
-    markNotificationRead(item.id);
-    // Navigate to scholarship if data contains an id
-    const scholarshipId = item.data?.scholarshipId ?? item.data?.entity_id;
-    if (scholarshipId) {
-      router.push(`/scholarship/${scholarshipId}`);
+  const handlePress = useCallback((item: Notification) => {
+    if (!item.read) {
+      markRead.mutate(item.id);
     }
-  }, []);
+    if (item.relatedScholarshipId) {
+      router.push(`/scholarship/${item.relatedScholarshipId}`);
+    }
+  }, [markRead]);
+
+  const handleMarkAllRead = () => {
+    if (unreadCount > 0) {
+      markAllRead.mutate();
+    }
+  };
+
+  const handleScroll = (event: any) => {
+    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+    const isCloseToBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - 50;
+    if (isCloseToBottom && hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  };
 
   return (
     <View
@@ -190,13 +212,21 @@ export default function NotificationsScreen() {
         </Pressable>
         <Text style={styles.headerTitle}>Notifications</Text>
         {unreadCount > 0 && (
-          <Pressable onPress={markAllRead} style={styles.markAllBtn}>
-            <Text style={styles.markAllText}>Mark all read</Text>
+          <Pressable onPress={handleMarkAllRead} style={styles.markAllBtn} disabled={markAllRead.isPending}>
+            {markAllRead.isPending ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Text style={styles.markAllText}>Mark all read</Text>
+            )}
           </Pressable>
         )}
       </View>
 
-      {notifications.length === 0 ? (
+      {isLoading ? (
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      ) : allNotifications.length === 0 ? (
         /* Empty state */
         <View style={styles.emptyContainer}>
           <View style={styles.emptyIconBg}>
@@ -213,7 +243,11 @@ export default function NotificationsScreen() {
           </Text>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
+        >
           {/* Today */}
           {today.length > 0 && (
             <View style={styles.section}>
@@ -266,6 +300,12 @@ export default function NotificationsScreen() {
                   />
                 ))}
               </View>
+            </View>
+          )}
+
+          {isFetchingNextPage && (
+            <View style={{ paddingVertical: 16 }}>
+              <ActivityIndicator size="small" color={colors.primary} />
             </View>
           )}
 

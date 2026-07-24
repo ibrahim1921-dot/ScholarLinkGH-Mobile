@@ -1,7 +1,7 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { FlatList, StyleSheet, View, Text, Pressable, ScrollView, ImageBackground } from 'react-native';
+import { FlatList, StyleSheet, View, Text, Pressable, ScrollView, ImageBackground, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { AppTextInput } from '../../components/AppTextInput';
@@ -13,7 +13,8 @@ import { FiltersSheet, ActiveFilter } from '../../components/FiltersSheet';
 import { colors } from '../../constants/colors';
 import { scholarshipService, ScholarshipFilters } from '../../services/scholarshipService';
 import { Scholarship } from '../../types/api';
-import { useSavedScholarships } from '../../hooks/useScholarship';
+import { useSavedScholarships, useScholarshipMatches, useTriggerMatching } from '../../hooks/useScholarship';
+import { useUnreadNotificationCount } from '../../hooks/useNotifications';
 
 // Status filter display labels
 const STATUS_OPTIONS = ['OPEN', 'CLOSING_SOON', 'CLOSED', 'FULL'];
@@ -40,6 +41,7 @@ function matchesSearch(scholarship: Scholarship, term: string): boolean {
 
 export default function ScholarshipsScreen() {
   const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{ filter?: string }>();
 
   // ── Data state ──
   const [scholarships, setScholarships] = useState<Scholarship[]>([]);
@@ -52,6 +54,11 @@ export default function ScholarshipsScreen() {
   // ── Filter state (mutual exclusivity enforced via single ActiveFilter) ──
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>(null);
 
+  // ── Matches state (relocated from Home) ──
+  const { data: matchesData = [] } = useScholarshipMatches();
+  const triggerMatchingMutation = useTriggerMatching();
+  const [matchCooldown, setMatchCooldown] = useState(0);
+
   // ── Lookup data for filter sheets ──
   const [countries, setCountries] = useState<string[]>([]);
   const [fields, setFields] = useState<string[]>([]);
@@ -63,6 +70,7 @@ export default function ScholarshipsScreen() {
   const [showStatusSheet, setShowStatusSheet] = useState(false);
 
   const { data: savedScholarships } = useSavedScholarships();
+  const { data: unreadCount = 0 } = useUnreadNotificationCount();
 
   // Track the current activeFilter in a ref so loadPage always sees the latest value
   const activeFilterRef = useRef(activeFilter);
@@ -78,8 +86,8 @@ export default function ScholarshipsScreen() {
   const loadPage = useCallback(async (p: number, overrideFilter?: ActiveFilter) => {
     const currentFilter = overrideFilter !== undefined ? overrideFilter : activeFilterRef.current;
 
-    // Don't fetch from server when showing saved scholarships (client-side list)
-    if (currentFilter?.type === 'saved') {
+    // Don't fetch from server when showing saved or matches (client-side lists)
+    if (currentFilter?.type === 'saved' || currentFilter?.type === 'matches') {
       setLoading(false);
       return;
     }
@@ -117,6 +125,21 @@ export default function ScholarshipsScreen() {
     loadPage(0);
   }, []);
 
+  // ── Read deep-link filter param (e.g. from Home "View All") ──
+  useEffect(() => {
+    if (params.filter === 'matches') {
+      setActiveFilter({ type: 'matches' });
+    }
+  }, [params.filter]);
+
+  // ── Match cooldown timer ──
+  useEffect(() => {
+    if (matchCooldown > 0) {
+      const timer = setTimeout(() => setMatchCooldown(c => c - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [matchCooldown]);
+
   // ── Debounced search (400ms) ──
   useEffect(() => {
     const id = setTimeout(() => loadPage(0), 400);
@@ -128,7 +151,7 @@ export default function ScholarshipsScreen() {
     loadPage(0, activeFilter);
   }, [activeFilter]);
 
-  // ── Task 2: Client-side filtering for Saved + Search combined state ──
+  // ── Client-side filtering for Saved + Search combined state ──
   const filteredSavedScholarships = useMemo(() => {
     if (activeFilter?.type !== 'saved') return [];
     const list = savedScholarships || [];
@@ -137,7 +160,11 @@ export default function ScholarshipsScreen() {
   }, [activeFilter, savedScholarships, search]);
 
   // ── Determine displayed data ──
-  const displayData = activeFilter?.type === 'saved' ? filteredSavedScholarships : scholarships;
+  const displayData = activeFilter?.type === 'saved'
+    ? filteredSavedScholarships
+    : activeFilter?.type === 'matches'
+      ? [] // matches rendering is handled separately below
+      : scholarships;
 
   // ── Empty state message ──
   const emptyMessage = (() => {
@@ -147,8 +174,21 @@ export default function ScholarshipsScreen() {
       }
       return "You haven't saved any scholarships yet.";
     }
+    if (activeFilter?.type === 'matches') {
+      return ''; // handled by custom matches empty state
+    }
     return 'Try different search terms.';
   })();
+
+  // ── Trigger matching handler ──
+  const handleFindMatches = () => {
+    if (triggerMatchingMutation.isPending || matchCooldown > 0) return;
+    triggerMatchingMutation.mutate(undefined, {
+      onSuccess: () => {
+        setMatchCooldown(30);
+      },
+    });
+  };
 
   // ── Filter application handler (enforces mutual exclusivity) ──
   const applyFilter = (filter: ActiveFilter) => {
@@ -186,11 +226,6 @@ export default function ScholarshipsScreen() {
       >
         <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.primary, opacity: 0.65 }]} />
 
-        {/* Logo */}
-        <View style={[styles.avatarPlaceholder, { backgroundColor: 'rgba(255, 255, 255, 0.2)' }]}>
-          <Text style={{ color: '#ffffff', fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14 }}>SL</Text>
-        </View>
-
         {/* Search Bar */}
         <View style={[styles.searchContainer, { flex: 1, marginBottom: 0 }]}>
           <Ionicons name="search" size={20} color={colors.muted} style={styles.searchIcon} />
@@ -206,6 +241,7 @@ export default function ScholarshipsScreen() {
         {/* Bell Icon */}
         <Pressable style={{ padding: 4 }} onPress={() => router.push("/notifications")}>
           <Ionicons name="notifications-outline" size={24} color="#ffffff" />
+          {unreadCount > 0 && <View style={styles.badgeDot} />}
         </Pressable>
       </ImageBackground>
 
@@ -234,6 +270,22 @@ export default function ScholarshipsScreen() {
           >
             <Text style={isChipActive('saved') ? styles.filterBtnTextActive : styles.filterBtnText}>
               Saved
+            </Text>
+          </Pressable>
+
+          {/* Matches chip */}
+          <Pressable
+            style={isChipActive('matches') ? styles.filterBtnActive : styles.filterBtn}
+            onPress={() => applyFilter(isChipActive('matches') ? null : { type: 'matches' })}
+          >
+            <Ionicons
+              name="sparkles"
+              size={14}
+              color={isChipActive('matches') ? '#ffffff' : colors.muted}
+              style={{ marginRight: 4 }}
+            />
+            <Text style={isChipActive('matches') ? styles.filterBtnTextActive : styles.filterBtnText}>
+              Matches
             </Text>
           </Pressable>
 
@@ -270,7 +322,71 @@ export default function ScholarshipsScreen() {
       </View>
 
       {/* Scholarship Feed */}
-      {loading && page === 0 && activeFilter?.type !== 'saved' ? (
+      {activeFilter?.type === 'matches' ? (
+        // ── Matches view (custom rendering) ──
+        <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
+          {matchesData.length > 0 ? (
+            <>
+              {/* Section header with refresh button */}
+              <View style={styles.matchesSectionHeader}>
+                <Text style={styles.matchesSectionTitle}>
+                  {matchesData.length} Match{matchesData.length !== 1 ? 'es' : ''} Found
+                </Text>
+                <Pressable
+                  style={[styles.refreshBtn, (triggerMatchingMutation.isPending || matchCooldown > 0) && styles.refreshBtnDisabled]}
+                  onPress={handleFindMatches}
+                  disabled={triggerMatchingMutation.isPending || matchCooldown > 0}
+                >
+                  {triggerMatchingMutation.isPending ? (
+                    <ActivityIndicator color={colors.primary} size="small" />
+                  ) : (
+                    <Ionicons
+                      name="refresh"
+                      size={18}
+                      color={matchCooldown > 0 ? colors.muted : colors.primary}
+                    />
+                  )}
+                </Pressable>
+              </View>
+              {matchCooldown > 0 && (
+                <Text style={styles.cooldownText}>Refresh available in {matchCooldown}s</Text>
+              )}
+              {/* Matched scholarship cards */}
+              {matchesData.map((match) => (
+                <ScholarshipCard
+                  key={match.matchId}
+                  match={match}
+                  onPress={() => router.push({ pathname: '/scholarship/[id]', params: { id: String(match.scholarshipId) } })}
+                />
+              ))}
+            </>
+          ) : (
+            // ── Matches empty state with CTA ──
+            <View style={styles.matchesEmptyContainer}>
+              <View style={styles.matchesEmptyIconBg}>
+                <Ionicons name="sparkles" size={40} color={colors.primary} />
+              </View>
+              <Text style={styles.matchesEmptyTitle}>No matches yet</Text>
+              <Text style={styles.matchesEmptyDesc}>
+                Let our AI analyze your profile and find the best scholarship matches for you.
+              </Text>
+              <Pressable
+                style={[styles.findMatchesBtn, (triggerMatchingMutation.isPending || matchCooldown > 0) && styles.findMatchesBtnDisabled]}
+                onPress={handleFindMatches}
+                disabled={triggerMatchingMutation.isPending || matchCooldown > 0}
+              >
+                {triggerMatchingMutation.isPending ? (
+                  <ActivityIndicator color="#ffffff" size="small" />
+                ) : (
+                  <Text style={styles.findMatchesBtnText}>
+                    {matchCooldown > 0 ? `Try again in ${matchCooldown}s` : 'Find My Matches'}
+                  </Text>
+                )}
+              </Pressable>
+            </View>
+          )}
+        </ScrollView>
+      ) : loading && page === 0 && activeFilter?.type !== 'saved' ? (
         <View style={{ flex: 1, justifyContent: 'center' }}>
           <LoadingState />
         </View>
@@ -360,6 +476,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  badgeDot: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.danger,
+    borderWidth: 1.5,
+    borderColor: '#ffffff',
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -368,14 +495,7 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
     backgroundColor: colors.surface,
   },
-  avatarPlaceholder: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#d5e3ff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+
   searchContainer: {
     position: 'relative',
     marginBottom: 16,
@@ -426,6 +546,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
   },
   filterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#e8e8ed', // surface-container-high
     paddingHorizontal: 16,
     paddingVertical: 8,
@@ -447,5 +569,92 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 8,
     paddingBottom: 120, // Room for bottom tabs
+  },
+  // ── Matches section styles ──
+  matchesSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingTop: 4,
+  },
+  matchesSectionTitle: {
+    fontFamily: 'PlusJakartaSans_700Bold',
+    fontSize: 16,
+    color: colors.ink,
+  },
+  refreshBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(27, 109, 36, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  refreshBtnDisabled: {
+    opacity: 0.5,
+  },
+  cooldownText: {
+    fontFamily: 'BeVietnamPro_400Regular',
+    fontSize: 12,
+    color: colors.muted,
+    textAlign: 'right',
+    marginBottom: 12,
+    marginTop: -8,
+  },
+  matchesEmptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 24,
+  },
+  matchesEmptyIconBg: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(27, 109, 36, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  matchesEmptyTitle: {
+    fontFamily: 'PlusJakartaSans_700Bold',
+    fontSize: 20,
+    color: colors.ink,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  matchesEmptyDesc: {
+    fontFamily: 'BeVietnamPro_400Regular',
+    fontSize: 14,
+    color: colors.muted,
+    textAlign: 'center',
+    marginBottom: 28,
+    lineHeight: 21,
+  },
+  findMatchesBtn: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 28,
+    minWidth: 220,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  findMatchesBtnDisabled: {
+    backgroundColor: colors.muted,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  findMatchesBtnText: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: 16,
+    color: '#ffffff',
   },
 });

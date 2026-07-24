@@ -21,6 +21,7 @@ export type Page<T> = {
   totalElements: number;
   number: number;
   size: number;
+  last: boolean;
 };
 
 export type StudentProfile = {
@@ -40,6 +41,7 @@ export type StudentProfile = {
   profileStrengthScore?: number | null;
   profileImprovementSuggestions?: string | null;
   documentDisclaimerAcceptedAt?: string | null;
+  skills?: string[];
 };
 
 export type ProfilePayload = {
@@ -55,6 +57,7 @@ export type ProfilePayload = {
   intended_start_date?: string;
   bio?: string;
   achievements?: string;
+  skills?: string[];
 };
 
 export type Scholarship = {
@@ -95,11 +98,16 @@ export type ScholarshipMatch = {
   matchedAt: string;
 };
 
+export type Criterion = {
+  id: string;
+  label: string;
+  met: boolean;
+  reason: string;
+};
+
 export type EligibilityResult = {
-  meets?: boolean;
-  criteria_met?: string[];
-  criteria_missing?: string[];
-  actions_required?: string[];
+  overallMeets?: boolean;
+  criteria?: Criterion[];
   [key: string]: unknown;
 };
 
@@ -112,6 +120,9 @@ export type ApplicationTracker = {
   scholarshipName: string;
   scholarshipProvider: string;
   scholarshipDeadline: string;
+  imageUrl?: string | null;
+  destinationCountry?: string;
+  eligibleFields?: string;
   deadlineCountdown: number;
   status: ApplicationStatus;
   applicationMode?: ApplicationMode;
@@ -147,9 +158,52 @@ export type JobListing = {
   fieldOfStudy: string;
   requiredEducationLevel: string;
   minimumGpa?: number;
-  requirements: string;
+  requirements: string[];
   salaryRange?: string;
   applicationUrl?: string;
+  imageUrl?: string | null;
   applicationDeadline: string;
+  employmentType?: 'FULL_TIME' | 'PART_TIME' | 'INTERNSHIP' | 'CONTRACT' | 'TEMPORARY';
+  experienceLevel?: 'ENTRY_LEVEL' | 'GRADUATE' | 'MID_LEVEL' | 'SENIOR';
+  workMode?: 'REMOTE' | 'HYBRID' | 'ON_SITE';
+  createdAt: string;
+};
+
+export type JobApplication = {
+  id: number;
+  student: StudentProfile; // Or just the ID if populated differently, usually we might just get the job object
+  job: JobListing;
+  status: ApplicationStatus;
+  coverLetter?: string;
+  applicationMode: ApplicationMode;
+  documents: DocumentUpload[];
+  notes?: string;
+  appliedAt: string;
+  updatedAt: string;
+};
+
+export type UnifiedApplication = {
+  type: 'job' | 'scholarship';
+  id: number;
+  title: string;
+  provider: string;
+  status: ApplicationStatus;
+  deadline?: string;
+  updatedAt: string;
+  linkId: number;
+  imageUrl?: string | null;
+  destinationCountry?: string;
+  eligibleFields?: string;
+  deadlineCountdown?: number;
+  originalData: ApplicationTracker | JobApplication;
+};
+
+export type Notification = {
+  id: number;
+  type: string;
+  title: string;
+  body: string;
+  relatedScholarshipId?: number | null;
+  read: boolean;
   createdAt: string;
 };

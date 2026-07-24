@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Alert } from 'react-native';
 import { scholarshipService } from '../services/scholarshipService';
+import { aiService } from '../services/aiService';
 
 export function useScholarshipDetail(scholarshipId: number) {
   return useQuery({
@@ -60,5 +61,28 @@ export function useToggleSaveScholarship() {
 export function useReportScholarship() {
   return useMutation({
     mutationFn: (scholarshipId: number) => scholarshipService.reportScholarship(scholarshipId),
+  });
+}
+
+export function useScholarshipMatches() {
+  return useQuery({
+    queryKey: ['scholarshipMatches'],
+    queryFn: () => aiService.getScholarshipMatches(),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
+export function useTriggerMatching() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => aiService.getScholarshipMatches(),
+    onSuccess: (data) => {
+      // Directly update the cache with fresh results
+      queryClient.setQueryData(['scholarshipMatches'], data);
+    },
+    onError: (err: any) => {
+      Alert.alert('Matching Error', err?.message ?? 'Failed to find matches');
+    },
   });
 }

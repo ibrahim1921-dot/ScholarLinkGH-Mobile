@@ -36,6 +36,8 @@ export default function ProfileSetupStep3Screen() {
   const [languages, setLanguages] = useState<LanguageEntry[]>([{ language: 'English', level: 'Fluent' }]);
   const [bio, setBio] = useState("");
   const [achievements, setAchievements] = useState("");
+  const [skills, setSkills] = useState<string[]>([]);
+  const [skillInput, setSkillInput] = useState("");
   const [fetching, setFetching] = useState(true);
   const [loading, setLoading] = useState(false);
   const [selectedDocType, setSelectedDocType] = useState<string>(documentTypes[0]);
@@ -109,6 +111,9 @@ export default function ProfileSetupStep3Screen() {
         if (profile.achievements) setAchievements(profile.achievements);
         if (profile.standardizedTests) {
           setSelectedTests(profile.standardizedTests.split(','));
+        }
+        if (profile.skills) {
+          setSkills(profile.skills);
         }
       } catch (e) {
         // Ignore if profile doesn't exist
@@ -237,6 +242,7 @@ export default function ProfileSetupStep3Screen() {
         standardized_tests: selectedTests.join(','),
         bio,
         achievements,
+        skills,
       });
       queryClient.invalidateQueries({ queryKey: ['profileCompleteness'] });
       router.replace("/(tabs)");
@@ -327,7 +333,7 @@ export default function ProfileSetupStep3Screen() {
                   <Ionicons name="chevron-down" size={16} color={colors.primary} />
                 </Pressable>
                 <Pressable onPress={() => removeLanguage(index)} style={{ padding: 8, marginLeft: 4 }}>
-                  <Ionicons name="trash-outline" size={20} color={colors.error} />
+                  <Ionicons name="trash-outline" size={20} color={colors.danger} />
                 </Pressable>
               </View>
             ))}
@@ -373,6 +379,47 @@ export default function ProfileSetupStep3Screen() {
                 textAlignVertical="top"
               />
               <Text style={styles.charCount}>{achievements.length}/500</Text>
+            </View>
+          </View>
+
+          {/* Skills */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>Skills</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <TextInput
+                style={[styles.textAreaContainer, { flex: 1, padding: 12, minHeight: 48, fontFamily: "BeVietnamPro_400Regular", fontSize: 14, color: colors.primary }]}
+                placeholder="E.g. Java, Public Speaking, React"
+                placeholderTextColor={colors.muted}
+                value={skillInput}
+                onChangeText={setSkillInput}
+                onSubmitEditing={() => {
+                  if (skillInput.trim() && !skills.includes(skillInput.trim())) {
+                    setSkills([...skills, skillInput.trim()]);
+                    setSkillInput("");
+                  }
+                }}
+              />
+              <Pressable
+                style={{ backgroundColor: colors.primary, padding: 12, borderRadius: 8, height: 48, justifyContent: 'center' }}
+                onPress={() => {
+                  if (skillInput.trim() && !skills.includes(skillInput.trim())) {
+                    setSkills([...skills, skillInput.trim()]);
+                    setSkillInput("");
+                  }
+                }}
+              >
+                <Ionicons name="add" size={20} color="#fff" />
+              </Pressable>
+            </View>
+            <View style={styles.typeChipsContainer}>
+              {skills.map(skill => (
+                <View key={skill} style={[styles.typeChip, styles.typeChipSelected, { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 12 }]}>
+                  <Text style={styles.typeChipTextSelected}>{skill}</Text>
+                  <Pressable onPress={() => setSkills(skills.filter(s => s !== skill))}>
+                    <Ionicons name="close-circle" size={16} color="#fff" />
+                  </Pressable>
+                </View>
+              ))}
             </View>
           </View>
 
@@ -707,6 +754,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 8,
     paddingBottom: 12,
+    flexWrap: "wrap",
   },
   typeChip: {
     paddingHorizontal: 16,

@@ -6,19 +6,22 @@ import {
   ScrollView,
   Pressable,
   Image,
+  Alert,
+  Linking,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import Constants from "expo-constants";
 
 import { colors } from "../constants/colors";
 import { useAuth } from "../hooks/useAuth";
 import { UserAvatar } from "../components/UserAvatar";
 
 const SETTINGS_ITEMS = [
-  { id: 'personal', title: 'Personal Information', icon: 'person-outline' },
+  { id: 'personal', title: 'Personal Information', icon: 'person-outline', route: '/profile-summary' },
   { id: 'vault', title: 'Document Vault', icon: 'folder-open-outline', route: '/documents' },
-  { id: 'notifications', title: 'Notification Settings', icon: 'notifications-outline', route: '/notifications' },
-  { id: 'security', title: 'Security & Password', icon: 'lock-closed-outline' },
+  { id: 'notifications', title: 'Notifications', icon: 'notifications-outline', route: '/notifications' },
+  { id: 'security', title: 'Security & Password', icon: 'lock-closed-outline', disabled: true },
 ];
 
 export default function ProfileSettingsScreen() {
@@ -53,7 +56,7 @@ export default function ProfileSettingsScreen() {
               <Ionicons name="pencil" size={16} color="#ffffff" />
             </Pressable>
           </View>
-          
+
           <Text style={styles.userName}>{user?.username || "Student"}</Text>
           <View style={styles.locationContainer}>
             <Ionicons name="location" size={16} color={colors.muted} />
@@ -85,10 +88,10 @@ export default function ProfileSettingsScreen() {
           <View style={styles.premiumFooter}>
             <View>
               <Text style={styles.premiumStatusLabel}>STATUS</Text>
-              <Text style={styles.premiumStatusValue}>Active</Text>
+              <Text style={styles.premiumStatusValue}>Coming Soon</Text>
             </View>
-            <Pressable style={styles.premiumButton}>
-              <Text style={styles.premiumButtonText}>VIEW BENEFITS</Text>
+            <Pressable style={[styles.premiumButton, { opacity: 0.6 }]} disabled={true}>
+              <Text style={styles.premiumButtonText}>COMING SOON</Text>
             </Pressable>
           </View>
         </View>
@@ -102,9 +105,14 @@ export default function ProfileSettingsScreen() {
                 key={item.id}
                 style={[
                   styles.settingsItem,
-                  index < SETTINGS_ITEMS.length - 1 && styles.borderBottom
+                  index < SETTINGS_ITEMS.length - 1 && styles.borderBottom,
+                  item.disabled && { opacity: 0.5 }
                 ]}
                 onPress={() => {
+                  if (item.disabled) {
+                    Alert.alert('Coming Soon', 'This feature will be available in a future update.');
+                    return;
+                  }
                   if (item.route) {
                     router.push(item.route as any);
                   }
@@ -126,7 +134,10 @@ export default function ProfileSettingsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>SUPPORT</Text>
           <View style={styles.card}>
-            <Pressable style={styles.settingsItem}>
+            <Pressable
+              style={styles.settingsItem}
+              onPress={() => Linking.openURL('mailto:support@scholarlinkgh.com')}
+            >
               <View style={styles.settingsItemLeft}>
                 <View style={styles.settingsIconContainer}>
                   <Ionicons name="help-circle-outline" size={20} color={colors.primary} />
@@ -138,14 +149,7 @@ export default function ProfileSettingsScreen() {
           </View>
         </View>
 
-        {/* Logout Section */}
-        <View style={styles.logoutSection}>
-          <Pressable style={styles.logoutButton} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={20} color={colors.danger} />
-            <Text style={styles.logoutText}>Logout</Text>
-          </Pressable>
-          <Text style={styles.versionText}>ScholarLink GH v2.4.0</Text>
-        </View>
+
 
       </ScrollView>
     </View>

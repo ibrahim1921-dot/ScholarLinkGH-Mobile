@@ -17,7 +17,7 @@ import {
 
 import { colors } from "../constants/colors";
 import { AuthProvider } from "../hooks/useAuth";
-import { useNotifications } from "../hooks/useNotifications";
+import { useNotificationsSetup } from "../hooks/useNotifications";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const queryClient = new QueryClient({
@@ -41,7 +41,7 @@ Notifications.setNotificationHandler({
 });
 
 function NotificationInitializer() {
-  useNotifications();
+  useNotificationsSetup();
   return null;
 }
 
@@ -80,6 +80,7 @@ export default function RootLayout() {
             <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="(auth)" options={{ headerShown: false }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="notifications" options={{ headerShown: false }} />
             <Stack.Screen name="profile-setup" options={{ title: "Profile" }} />
             <Stack.Screen name="documents" options={{ title: "Documents" }} />
             <Stack.Screen

@@ -71,7 +71,7 @@ export default function OnboardingScreen() {
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <View style={styles.logoRow}>
           <Image
-            source={require("../assets/images/scholarlink_logo.png")}
+            source={require("../assets/images/logo-full.png")}
             style={styles.logo}
           />
           <Text style={styles.logoText}>ScholarLink GH</Text>

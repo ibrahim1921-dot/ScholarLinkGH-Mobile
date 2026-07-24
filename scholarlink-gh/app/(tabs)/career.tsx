@@ -1,17 +1,20 @@
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Alert, FlatList, Linking, StyleSheet, Text, View, Pressable, TextInput, ScrollView, Platform, Image, ImageBackground } from 'react-native';
+import { Alert, FlatList, Linking, StyleSheet, Text, View, Pressable, TextInput, ScrollView, Platform, ImageBackground, Modal, ActivityIndicator, SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { Screen } from '../../components/Screen';
 import { EmptyState, ErrorState, LoadingState } from '../../components/StateView';
 import { UserAvatar } from '../../components/UserAvatar';
+import { BaseScholarshipCard } from '../../components/BaseScholarshipCard';
+import { AppTextInput } from '../../components/AppTextInput';
 import { colors } from '../../constants/colors';
 import { jobService } from '../../services/jobService';
 import { aiService } from '../../services/aiService';
+import { useSavedJobs, useToggleSaveJob } from '../../hooks/useJob';
+import { getCountdownLabel, formatDeadline } from '../../utils/date';
 import { JobListing } from '../../types/api';
-import { useSavedScholarships, useToggleSaveScholarship } from '../../hooks/useScholarship';
 
 export default function CareerScreen() {
   const insets = useSafeAreaInsets();
@@ -22,87 +25,147 @@ export default function CareerScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('All Roles');
 
-  const { data: savedScholarships } = useSavedScholarships();
-  const toggleSaveMutation = useToggleSaveScholarship();
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [cvModalVisible, setCvModalVisible] = useState(false);
+  const [cvLoading, setCvLoading] = useState(false);
+  const [generatedCv, setGeneratedCv] = useState<string | null>(null);
 
-  const filters = ['All Roles', 'Internships', 'Entry Level', 'Graduate Roles', 'Remote'];
+  const { data: savedJobs } = useSavedJobs();
+  const toggleSaveMutation = useToggleSaveJob();
 
-  useEffect(() => {
-    loadJobs();
-  }, []);
+  const filters = ['All Roles', 'Saved', 'Internships', 'Entry Level', 'Graduate Roles', 'Remote'];
 
-  const loadJobs = async () => {
-    setLoading(true);
+  const activeFilterRef = useRef(activeFilter);
+  activeFilterRef.current = activeFilter;
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const loadJobs = useCallback(async (pageNumber = 0, overrideFilter?: string) => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
+    if (pageNumber === 0) setLoading(true);
     setError(null);
     try {
-      const result = await jobService.getJobs();
-      setJobs(result.content);
+      const currentFilter = overrideFilter !== undefined ? overrideFilter : activeFilterRef.current;
+      if (currentFilter === 'Saved') {
+        setLoading(false);
+        return;
+      }
+
+      const filters: any = { page: pageNumber, size: 20, signal: abortController.signal };
+      
+      if (searchQuery.trim()) filters.search = searchQuery.trim();
+
+      if (currentFilter === 'Internships') filters.employmentType = 'INTERNSHIP';
+      if (currentFilter === 'Entry Level') filters.experienceLevel = 'ENTRY_LEVEL';
+      if (currentFilter === 'Graduate Roles') filters.experienceLevel = 'GRADUATE';
+      if (currentFilter === 'Remote') filters.workMode = 'REMOTE';
+
+      const result = await jobService.getJobs(filters);
+      if (pageNumber === 0) {
+        setJobs(result.content);
+      } else {
+        setJobs(prev => [...prev, ...result.content]);
+      }
+      setHasMore(!result.last);
+      setPage(pageNumber);
     } catch (e: any) {
+      if (e.name === 'CanceledError' || e.message === 'canceled') return;
       setError(e?.message ?? 'Failed to load');
     } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleApply = async (job: JobListing) => {
-    setApplyingId(job.id);
-    try {
-      let coverLetter: string | undefined;
-      try {
-        coverLetter = await aiService.generateCoverLetter(job.title, job.company, job.description);
-      } catch {
-        // proceed without cover letter
+      if (abortControllerRef.current === abortController) {
+        setLoading(false);
       }
-      await jobService.applyToJob(job.id, coverLetter);
-      Alert.alert('Applied!', `Your application for ${job.title} has been submitted.`);
+    }
+  }, [searchQuery]);
+
+  useEffect(() => {
+    loadJobs(0);
+  }, []);
+
+  useEffect(() => {
+    const id = setTimeout(() => loadJobs(0), 400);
+    return () => clearTimeout(id);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    loadJobs(0, activeFilter);
+  }, [activeFilter]);
+
+  const filteredSavedJobs = useMemo(() => {
+    if (activeFilter !== 'Saved') return [];
+    const list = savedJobs || [];
+    if (!searchQuery.trim()) return list;
+    const q = searchQuery.toLowerCase();
+    return list.filter((j) =>
+      j.title?.toLowerCase().includes(q) || j.company?.toLowerCase().includes(q)
+    );
+  }, [activeFilter, savedJobs, searchQuery]);
+
+  const displayData = activeFilter === 'Saved' ? filteredSavedJobs : jobs;
+
+  const handleGenerateCV = async () => {
+    if (displayData.length === 0) {
+      Alert.alert("No Jobs Found", "There are no jobs to tailor the CV to.");
+      return;
+    }
+    const targetJob = displayData[0]; // Tailor to the first job for this example
+    setCvModalVisible(true);
+    setCvLoading(true);
+    setGeneratedCv(null);
+    try {
+      const cvText = await jobService.generateTailoredCv(targetJob.id);
+      setGeneratedCv(cvText);
     } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'Could not apply');
+      Alert.alert("Error", e?.message ?? "Failed to generate CV.");
+      setCvModalVisible(false);
     } finally {
-      setApplyingId(null);
+      setCvLoading(false);
     }
   };
 
-  const handleGenerateCV = () => {
-    Alert.alert("AI CV Generation", "This feature will analyze your profile and generate a tailored CV for these roles.");
-  };
-
-  if (loading && jobs.length === 0) return <Screen scroll={false}><LoadingState /></Screen>;
-  if (error && jobs.length === 0) return <Screen scroll={false}><ErrorState message={error} onRetry={loadJobs} /></Screen>;
-
-  const filteredJobs = jobs.filter(job => {
-    if (activeFilter !== 'All Roles' && !job.title.toLowerCase().includes(activeFilter.toLowerCase().replace(' roles', '')) && !job.location.toLowerCase().includes(activeFilter.toLowerCase())) {
-      // Very basic filtering just for demo
-      return false;
-    }
-    if (searchQuery && !job.title.toLowerCase().includes(searchQuery.toLowerCase()) && !job.company.toLowerCase().includes(searchQuery.toLowerCase())) {
-      return false;
-    }
-    return true;
-  });
+  if (loading && displayData.length === 0) return <Screen scroll={false}><LoadingState /></Screen>;
+  if (error && displayData.length === 0) return <Screen scroll={false}><ErrorState message={error} onRetry={() => loadJobs(0)} /></Screen>;
 
   return (
     <View style={styles.container}>
       {/* Top App Bar */}
       <ImageBackground
         source={require("../../assets/images/header-career.jpg")}
-        style={[styles.header, { paddingTop: insets.top + 10 }]}
+        style={[styles.header, { paddingTop: insets.top + 10, gap: 12 }]}
         imageStyle={{ resizeMode: "cover" }}
       >
         <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.primary, opacity: 0.65 }]} />
-        <View style={styles.headerLeft}>
-          <Ionicons name="menu" size={24} color="#ffffff" style={{ marginRight: 8 }} />
-          <Text style={[styles.headerTitle, { color: '#ffffff' }]}>Jobs & Internships</Text>
-        </View>
-        <View style={styles.headerRight}>
-          <Pressable style={styles.iconBtn} onPress={() => router.push("/notifications")}>
-            <Ionicons name="notifications-outline" size={24} color="#ffffff" />
-          </Pressable>
+        
+        {/* Avatar */}
+        <Pressable onPress={() => router.push("/profile-summary")}>
           <UserAvatar size={32} style={[styles.avatar, { borderColor: '#ffffff', borderWidth: 1 }]} />
+        </Pressable>
+
+        {/* Search Bar */}
+        <View style={[styles.searchContainer, { flex: 1, marginBottom: 0 }]}>
+          <Ionicons name="search" size={20} color={colors.muted} style={styles.searchIcon} />
+          <AppTextInput
+            label=""
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search roles or companies..."
+            style={styles.searchInput}
+          />
         </View>
+
+        {/* Bell Icon */}
+        <Pressable style={{ padding: 4 }} onPress={() => router.push("/notifications")}>
+          <Ionicons name="notifications-outline" size={24} color="#ffffff" />
+        </Pressable>
       </ImageBackground>
 
       <FlatList
-        data={filteredJobs}
+        data={displayData}
         keyExtractor={(j) => String(j.id)}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
@@ -110,17 +173,6 @@ export default function CareerScreen() {
           <>
             {/* Search & Filter Section */}
             <View style={styles.searchFilterSection}>
-              <View style={styles.searchBox}>
-                <Ionicons name="search" size={20} color={colors.muted} style={styles.searchIcon} />
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder="Search roles, companies, or skills..."
-                  placeholderTextColor={colors.muted}
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                />
-              </View>
-              
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
                 {filters.map(filter => (
                   <Pressable 
@@ -148,78 +200,81 @@ export default function CareerScreen() {
               </Pressable>
             </View>
 
-            {filteredJobs.length === 0 && (
-              <EmptyState title="No Jobs Found" message="Try adjusting your filters or search query." />
+            {displayData.length === 0 && (
+              <EmptyState title="No Jobs Found" message={activeFilter === 'Saved' ? "You haven't saved any jobs yet." : "Try adjusting your filters or search query."} />
             )}
           </>
         }
-        renderItem={({ item, index }) => (
-          <View style={styles.jobCard}>
-            <View style={styles.jobCardHeader}>
-              <View style={styles.jobLogoBox}>
-                <Ionicons name="business" size={24} color={colors.primary} />
-              </View>
-              <View style={[styles.matchBadge, index % 2 === 0 ? styles.matchBadgeHigh : styles.matchBadgeMedium]}>
-                <Ionicons name={index % 2 === 0 ? "checkmark-circle" : "analytics"} size={14} color={index % 2 === 0 ? "#ffffff" : colors.primary} />
-                <Text style={[styles.matchBadgeText, index % 2 === 0 ? { color: '#ffffff' } : { color: colors.primary }]}>
-                  {index % 2 === 0 ? '95% Match' : '88% Match'}
-                </Text>
-              </View>
-            </View>
-
-            <Text style={styles.jobTitle}>{item.title}</Text>
-            <Text style={styles.companyLoc}>{item.company} • {item.location}</Text>
-
-            <View style={styles.jobDetailsRow}>
-              <View style={styles.detailItem}>
-                <Ionicons name="time-outline" size={16} color={colors.muted} />
-                <Text style={styles.detailText}>Closes in {item.applicationDeadline}</Text>
-              </View>
-              {index === 0 && (
-                <View style={[styles.detailItem, { marginLeft: 16 }]}>
-                  <Ionicons name="flash" size={16} color="#ba1a1a" />
-                  <Text style={[styles.detailText, { color: '#ba1a1a', fontWeight: '700' }]}>Fast-Track</Text>
-                </View>
-              )}
-            </View>
-
-            <View style={styles.jobActions}>
-              <Pressable 
-                style={[styles.btnApply, applyingId === item.id && { opacity: 0.7 }]} 
-                onPress={() => handleApply(item)}
-                disabled={applyingId === item.id}
+        renderItem={({ item }) => {
+          const daysUntilDeadline = item.applicationDeadline ? Math.ceil((new Date(item.applicationDeadline).getTime() - new Date().getTime()) / 86400000) : null;
+          const isSaved = savedJobs?.some(s => s.id === item.id);
+          
+          return (
+            <View style={{ marginBottom: 16 }}>
+              <BaseScholarshipCard
+                variant="compact"
+                title={item.title}
+                provider={item.company}
+                deadline={item.applicationDeadline ? formatDeadline(item.applicationDeadline) : undefined}
+                country={item.location}
+                field={item.fieldOfStudy}
+                countdownLabel={getCountdownLabel(daysUntilDeadline)}
+                imageUrl={item.imageUrl}
+                applicationUrl={item.applicationUrl}
+                onPress={() => router.push(`/job/${item.id}` as any)}
               >
-                <Text style={styles.btnApplyText}>{applyingId === item.id ? 'Applying...' : 'Apply Now'}</Text>
-              </Pressable>
-              {item.applicationUrl ? (
-                <Pressable style={styles.btnBookmark} onPress={() => Linking.openURL(item.applicationUrl!)}>
-                  <Ionicons name="open-outline" size={20} color={colors.primary} />
-                </Pressable>
-              ) : (
-                <Pressable 
-                  style={styles.btnBookmark}
-                  onPress={() => toggleSaveMutation.mutate(item.id)}
-                >
-                  <Ionicons 
-                    name={savedScholarships?.some(s => s.id === item.id) ? "bookmark" : "bookmark-outline"} 
-                    size={20} 
-                    color={savedScholarships?.some(s => s.id === item.id) ? colors.primary : colors.primary} 
-                  />
-                </Pressable>
-              )}
+                <View style={styles.jobActions}>
+                  <Pressable 
+                    style={styles.btnBookmark}
+                    onPress={() => toggleSaveMutation.mutate(item.id)}
+                  >
+                    <Ionicons 
+                      name={isSaved ? "bookmark" : "bookmark-outline"} 
+                      size={20} 
+                      color={isSaved ? colors.primary : colors.muted} 
+                    />
+                  </Pressable>
+                </View>
+              </BaseScholarshipCard>
             </View>
-          </View>
-        )}
+          );
+        }}
         ListFooterComponent={
-          filteredJobs.length > 0 ? (
+          hasMore && activeFilter !== 'Saved' ? (
             <View style={styles.paginationBox}>
-              <Pressable style={styles.btnLoadMore}>
+              <Pressable style={styles.btnLoadMore} onPress={() => loadJobs(page + 1)}>
                 <Text style={styles.btnLoadMoreText}>View more roles</Text>
               </Pressable>
             </View>
           ) : null
         }
       />
+
+      <Modal
+        visible={cvModalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setCvModalVisible(false)}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>AI CV Generation</Text>
+            <Pressable onPress={() => setCvModalVisible(false)} style={styles.modalCloseBtn}>
+              <Ionicons name="close" size={24} color={colors.ink} />
+            </Pressable>
+          </View>
+          {cvLoading ? (
+            <View style={styles.modalContentCentered}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={styles.modalLoadingText}>Generating your tailored CV...</Text>
+            </View>
+          ) : (
+            <ScrollView style={styles.modalContent} contentContainerStyle={styles.modalContentInner}>
+              <Text style={styles.cvText}>{generatedCv}</Text>
+            </ScrollView>
+          )}
+        </SafeAreaView>
+      </Modal>
     </View>
   );
 }
@@ -234,32 +289,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-        paddingBottom: 10,
+    paddingBottom: 10,
     backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(195, 198, 209, 0.3)',
-    zIndex: 10,
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  searchContainer: {
+    position: 'relative',
+    marginBottom: 16,
   },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  searchIcon: {
+    position: 'absolute',
+    left: 16,
+    top: 14,
+    zIndex: 1,
   },
-  iconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTitle: {
-    fontFamily: 'PlusJakartaSans_700Bold',
-    fontSize: 20,
-    color: colors.primary,
+  searchInput: {
+    paddingLeft: 48,
   },
   avatar: {
     width: 32,
@@ -274,28 +318,6 @@ const styles = StyleSheet.create({
   },
   searchFilterSection: {
     marginBottom: 24,
-  },
-  searchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f4f3f8', // surface-container-low
-    borderBottomWidth: 2,
-    borderBottomColor: 'rgba(195, 198, 209, 0.5)',
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
-    height: 48,
-    paddingHorizontal: 16,
-    marginBottom: 12,
-  },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontFamily: 'BeVietnamPro_400Regular',
-    fontSize: 14,
-    color: colors.ink,
-    height: '100%',
   },
   filterScroll: {
     gap: 8,
@@ -368,95 +390,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.primary,
   },
-  jobCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(195, 198, 209, 0.3)',
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 12,
-    elevation: 2,
-  },
-  jobCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 16,
-  },
-  jobLogoBox: {
-    width: 48,
-    height: 48,
-    backgroundColor: '#f4f3f8',
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  matchBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 16,
-    gap: 4,
-  },
-  matchBadgeHigh: {
-    backgroundColor: '#001e40', // primary
-  },
-  matchBadgeMedium: {
-    backgroundColor: '#a7c8ff', // primary-fixed-dim
-  },
-  matchBadgeText: {
-    fontFamily: 'BeVietnamPro_600SemiBold',
-    fontSize: 12,
-  },
-  jobTitle: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: 18,
-    color: colors.primary,
-    marginBottom: 4,
-  },
-  companyLoc: {
-    fontFamily: 'BeVietnamPro_400Regular',
-    fontSize: 14,
-    color: colors.muted,
-    marginBottom: 16,
-  },
-  jobDetailsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  detailItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  detailText: {
-    fontFamily: 'BeVietnamPro_600SemiBold',
-    fontSize: 12,
-    color: colors.muted,
-  },
   jobActions: {
     flexDirection: 'row',
     gap: 8,
+    marginTop: 16,
   },
-  btnApply: {
-    flex: 1,
-    height: 48,
-    backgroundColor: '#001e40', // primary
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  btnApplyText: {
-    fontFamily: 'BeVietnamPro_600SemiBold',
-    fontSize: 14,
-    color: '#ffffff',
-  },
+
   btnBookmark: {
     width: 48,
     height: 48,
@@ -483,5 +422,50 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: 16,
     color: colors.primary,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(195, 198, 209, 0.3)',
+  },
+  modalTitle: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: 18,
+    color: colors.ink,
+  },
+  modalCloseBtn: {
+    padding: 4,
+  },
+  modalContentCentered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  modalLoadingText: {
+    marginTop: 16,
+    fontFamily: 'BeVietnamPro_400Regular',
+    fontSize: 16,
+    color: colors.muted,
+  },
+  modalContent: {
+    flex: 1,
+  },
+  modalContentInner: {
+    padding: 20,
+  },
+  cvText: {
+    fontFamily: 'BeVietnamPro_400Regular',
+    fontSize: 14,
+    color: colors.ink,
+    lineHeight: 24,
   },
 });

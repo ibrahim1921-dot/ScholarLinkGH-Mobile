@@ -10,13 +10,17 @@ import { useCallback, useRef, useState } from "react";
 import { colors } from "../constants/colors";
 
 type Props = TextInputProps & {
-  label: string;
+  label?: string;
   error?: string;
+  rightIcon?: React.ReactNode;
+  leftIcon?: React.ReactNode;
 };
 
 export function AppTextInput({
   label,
   error,
+  rightIcon,
+  leftIcon,
   style,
   onFocus,
   onBlur,
@@ -39,25 +43,39 @@ export function AppTextInput({
   return (
     <View style={styles.wrap} ref={viewRef}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
-      <TextInput
-        placeholderTextColor="#8B9894"
-        style={[
-          styles.input,
-          isFocused && styles.inputFocused,
-          error && styles.inputError,
-          style,
-        ]}
-        onFocus={(e) => {
-          setIsFocused(true);
-          scrollToInput();
-          onFocus?.(e);
-        }}
-        onBlur={(e) => {
-          setIsFocused(false);
-          onBlur?.(e);
-        }}
-        {...props}
-      />
+      <View style={styles.inputContainer}>
+        {leftIcon ? (
+          <View style={styles.leftIconContainer}>
+            {leftIcon}
+          </View>
+        ) : null}
+        <TextInput
+          placeholderTextColor="#8B9894"
+          style={[
+            styles.input,
+            isFocused && styles.inputFocused,
+            error && styles.inputError,
+            !!rightIcon && { paddingRight: 48 },
+            !!leftIcon && { paddingLeft: 48 },
+            style,
+          ]}
+          onFocus={(e) => {
+            setIsFocused(true);
+            scrollToInput();
+            onFocus?.(e);
+          }}
+          onBlur={(e) => {
+            setIsFocused(false);
+            onBlur?.(e);
+          }}
+          {...props}
+        />
+        {rightIcon ? (
+          <View style={styles.rightIconContainer}>
+            {rightIcon}
+          </View>
+        ) : null}
+      </View>
       {error ? <Text style={styles.error}>{error}</Text> : null}
     </View>
   );
@@ -65,6 +83,21 @@ export function AppTextInput({
 
 const styles = StyleSheet.create({
   wrap: { gap: 7 },
+  inputContainer: {
+    position: "relative",
+    justifyContent: "center",
+  },
+  rightIconContainer: {
+    position: "absolute",
+    right: 16,
+    zIndex: 1,
+    padding: 4,
+  },
+  leftIconContainer: {
+    position: "absolute",
+    left: 16,
+    zIndex: 1,
+  },
   label: {
     color: colors.ink,
     fontSize: 13,

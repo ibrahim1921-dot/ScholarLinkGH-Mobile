@@ -1,8 +1,10 @@
 import { Link, router } from "expo-router";
 import { useState } from "react";
 import { Alert, StyleSheet, Text, View, Image, ScrollView, KeyboardAvoidingView, Platform, TextInput, Pressable, ActivityIndicator } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
+import { MaterialIcons, Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { AppTextInput } from "../../components/AppTextInput";
 
 import { useAuth } from "../../hooks/useAuth";
 import { getErrorMessage } from "../../services/apiClient";
@@ -188,22 +190,22 @@ export default function RegisterScreen() {
               <Text style={styles.label}>PASSWORD</Text>
               <Text style={[styles.strengthLabel, { color: strength.color }]}>{strength.label}</Text>
             </View>
-            <View style={styles.inputWrapper}>
-              <MaterialIcons name="lock-outline" size={20} color={dsColors.outline} style={styles.inputLeftIcon} />
-              <TextInput
-                style={[styles.input, styles.passwordInput, passwordFocused && styles.inputFocused]}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-                placeholder="••••••••"
-                placeholderTextColor={dsColors.outline}
-                onFocus={() => setPasswordFocused(true)}
-                onBlur={() => setPasswordFocused(false)}
-              />
-              <Pressable style={styles.inputRightIcon} onPress={() => setShowPassword(!showPassword)}>
-                <MaterialIcons name={showPassword ? "visibility-off" : "visibility"} size={20} color={dsColors.outline} />
-              </Pressable>
-            </View>
+            <AppTextInput
+              leftIcon={<MaterialIcons name="lock-outline" size={20} color={dsColors.outline} />}
+              rightIcon={
+                <Pressable onPress={() => setShowPassword(!showPassword)}>
+                  <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={dsColors.outline} />
+                </Pressable>
+              }
+              style={[styles.input, styles.passwordInput, passwordFocused && styles.inputFocused]}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+              placeholder="••••••••"
+              placeholderTextColor={dsColors.outline}
+              onFocus={() => setPasswordFocused(true)}
+              onBlur={() => setPasswordFocused(false)}
+            />
             {/* Strength Indicator */}
             <View style={styles.strengthBarBg}>
               <View style={[styles.strengthBarFill, { width: strength.width as any, backgroundColor: strength.color }]} />

@@ -43,26 +43,7 @@ export default function ApplicationsScreen() {
     fetchJobs();
   };
 
-  console.log("STEP 3: RAW HOOK OUTPUT", JSON.stringify(jobApps, null, 2));
-
   // Merge into UnifiedApplication array
-  const unifiedJobApps = jobApps.map((j): UnifiedApplication => ({
-      type: 'job',
-      id: j.id,
-      title: j.job.title,
-      provider: j.job.company,
-      status: j.status,
-      deadline: j.job.applicationDeadline,
-      updatedAt: j.updatedAt,
-      linkId: j.job.id,
-      imageUrl: j.job.imageUrl,
-      destinationCountry: j.job.location,
-      eligibleFields: j.job.fieldOfStudy,
-      deadlineCountdown: undefined,
-      originalData: j,
-    }));
-
-  console.log("STEP 4: MAPPED JOB APPS", JSON.stringify(unifiedJobApps, null, 2));
   const unifiedApplications: UnifiedApplication[] = [
     ...trackers.map((t): UnifiedApplication => ({
       type: 'scholarship',
@@ -79,10 +60,22 @@ export default function ApplicationsScreen() {
       deadlineCountdown: t.deadlineCountdown,
       originalData: t,
     })),
-    ...unifiedJobApps,
+    ...jobApps.map((j): UnifiedApplication => ({
+      type: 'job',
+      id: j.id,
+      title: j.job.title,
+      provider: j.job.company,
+      status: j.status,
+      deadline: j.job.applicationDeadline,
+      updatedAt: j.updatedAt,
+      linkId: j.job.id,
+      imageUrl: j.job.imageUrl,
+      destinationCountry: j.job.location,
+      eligibleFields: j.job.fieldOfStudy,
+      deadlineCountdown: undefined,
+      originalData: j,
+    })),
   ].sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
-
-  console.log("STEP 5: FINAL MERGED ARRAY", JSON.stringify(unifiedApplications, null, 2));
 
   const getFilteredApps = () => {
     return unifiedApplications.filter((app) => {

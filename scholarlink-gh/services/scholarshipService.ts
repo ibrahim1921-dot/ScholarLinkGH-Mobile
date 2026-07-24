@@ -94,4 +94,17 @@ export const scholarshipService = {
       throw new Error(message);
     }
   },
+
+  async generatePersonalStatement(scholarshipId: number, keyPoints: string[] = []): Promise<string> {
+    try {
+      const response = await apiClient.post<{ success: boolean; message: string }>('/api/v1/ai/personal-statement', {
+        scholarshipId,
+        keyPoints,
+      });
+      return response.data.message;
+    } catch (error: any) {
+      const message = error.response?.data?.message || error.message || 'Something went wrong';
+      throw new Error(message);
+    }
+  },
 };

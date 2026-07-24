@@ -5,54 +5,8 @@ import { Platform } from 'react-native';
 import { router } from 'expo-router';
 
 import { profileService } from './profileService';
-
-// ── In-app notification store ──────────────────────────────────────────────────
-// Keeps received notifications in memory for the notifications screen.
-// Subscribers are notified whenever the list changes.
-
-export type InAppNotification = {
-  id: string;
-  title: string;
-  body: string;
-  data?: Record<string, unknown>;
-  receivedAt: Date;
-  read: boolean;
-};
-
-let receivedNotifications: InAppNotification[] = [];
-type Listener = () => void;
-const listeners: Set<Listener> = new Set();
-
-function notifyListeners() {
-  listeners.forEach((fn) => fn());
-}
-
-export function subscribeToNotifications(listener: Listener): () => void {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
-
-export function getNotifications(): InAppNotification[] {
-  return receivedNotifications;
-}
-
-export function markNotificationRead(id: string): void {
-  const n = receivedNotifications.find((item) => item.id === id);
-  if (n) {
-    n.read = true;
-    notifyListeners();
-  }
-}
-
-export function markAllRead(): void {
-  receivedNotifications.forEach((n) => { n.read = true; });
-  notifyListeners();
-}
-
-function addNotification(notification: InAppNotification): void {
-  receivedNotifications = [notification, ...receivedNotifications];
-  notifyListeners();
-}
+import { apiClient } from './apiClient';
+import { Page, Notification } from '../types/api';
 
 // ── Notification service ───────────────────────────────────────────────────────
 
@@ -121,20 +75,15 @@ export const notificationService = {
   /**
    * Sets up foreground + tap listeners using expo-notifications.
    * Returns a cleanup function.
+   * @param onNotificationReceived Optional callback invoked when a notification arrives in the foreground.
    */
-  setupNotificationListeners(): () => void {
+  setupNotificationListeners(onNotificationReceived?: () => void): () => void {
     // Fires when a notification is received while the app is in the foreground
     const receivedSubscription = Notifications.addNotificationReceivedListener(
       (notification) => {
-        const { title, body, data } = notification.request.content;
-        addNotification({
-          id: notification.request.identifier,
-          title: title ?? 'ScholarLink',
-          body: body ?? '',
-          data: data as Record<string, unknown> | undefined,
-          receivedAt: new Date(),
-          read: false,
-        });
+        if (onNotificationReceived) {
+          onNotificationReceived();
+        }
       }
     );
 
@@ -143,8 +92,9 @@ export const notificationService = {
       (response) => {
         const data = response.notification.request.content.data;
 
-        // Mark as read
-        markNotificationRead(response.notification.request.identifier);
+        // Note: the backend 'read' state should ideally be updated here, but since the user
+        // tapped it, they will be navigated to the screen where it gets marked read or we
+        // can do it implicitly. We'll leave the markRead to the UI or specific logic.
 
         // Navigate to scholarship detail if a scholarshipId is present
         if (data?.scholarshipId) {
@@ -171,5 +121,27 @@ export const notificationService = {
       receivedSubscription.remove();
       responseSubscription.remove();
     };
+  },
+
+  // ── Backend API calls ──
+
+  async getNotifications(page: number = 0, size: number = 20): Promise<Page<Notification>> {
+    const response = await apiClient.get<Page<Notification>>('/api/v1/notifications', {
+      params: { page, size },
+    });
+    return response.data;
+  },
+
+  async getUnreadCount(): Promise<number> {
+    const response = await apiClient.get<{ count: number }>('/api/v1/notifications/unread-count');
+    return response.data.count;
+  },
+
+  async markAsRead(id: number): Promise<void> {
+    await apiClient.patch(`/api/v1/notifications/${id}/read`);
+  },
+
+  async markAllAsRead(): Promise<void> {
+    await apiClient.patch('/api/v1/notifications/read-all');
   },
 };

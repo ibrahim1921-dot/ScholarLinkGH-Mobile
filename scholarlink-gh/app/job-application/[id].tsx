@@ -10,52 +10,42 @@ import { CountdownBadge } from '../../components/CountdownBadge';
 import { ErrorState, LoadingState } from '../../components/StateView';
 import { colors } from '../../constants/colors';
 import { applicationStatuses } from '../../constants/options';
-import { useApplicationDetail, useUpdateApplication } from '../../hooks/useTracker';
-import { ApplicationStatus } from '../../types/api';
+import { useJobDetail } from '../../hooks/useJob';
+import { ApplicationStatus, JobApplication } from '../../types/api';
+import { useQuery } from '@tanstack/react-query';
+import { jobService } from '../../services/jobService';
 
 const statusDisplayNames: Record<ApplicationStatus, string> = {
   RESEARCHING: 'Researching',
   IN_PROGRESS: 'In Progress',
   SUBMITTED: 'Submitted',
   INTERVIEW: 'Interview',
-  AWARDED: 'Awarded',
+  AWARDED: 'Offer',
   REJECTED: 'Rejected',
 };
 
-export default function ApplicationDetailScreen() {
+// Custom hook to fetch a specific job application
+function useJobApplicationDetail(id: number) {
+  return useQuery({
+    queryKey: ['jobApplication', id],
+    queryFn: async () => {
+      const apps = await jobService.getMyApplications();
+      const app = apps.find((a: JobApplication) => a.id === id);
+      if (!app) throw new Error('Job application not found');
+      return app;
+    },
+  });
+}
+
+export default function JobApplicationDetailScreen() {
   const insets = useSafeAreaInsets();
-  const { trackerId } = useLocalSearchParams<{ trackerId: string }>();
-  const id = Number(trackerId);
+  const { id: jobIdParam } = useLocalSearchParams<{ id: string }>();
+  const id = Number(jobIdParam);
 
-  const { data: tracker, isLoading, error, isError } = useApplicationDetail(id);
-  const updateMutation = useUpdateApplication();
-
-  const [notes, setNotes] = useState('');
-  const [isEditingNotes, setIsEditingNotes] = useState(false);
-
-  useEffect(() => {
-    if (tracker) {
-      setNotes(tracker.notes || '');
-    }
-  }, [tracker]);
+  const { data: application, isLoading, error, isError } = useJobApplicationDetail(id);
 
   if (isLoading) return <Screen scroll={false}><LoadingState /></Screen>;
-  if (isError || !tracker) return <Screen scroll={false}><ErrorState message={(error as Error)?.message ?? 'Tracker not found'} /></Screen>;
-
-  const handleSaveNotes = () => {
-    updateMutation.mutate(
-      { id, payload: { status: tracker.status, notes } },
-      {
-        onSuccess: () => {
-          setIsEditingNotes(false);
-          Alert.alert('Success', 'Notes saved successfully');
-        },
-        onError: (err: any) => {
-          Alert.alert('Error', err.message || 'Failed to save notes');
-        }
-      }
-    );
-  };
+  if (isError || !application) return <Screen scroll={false}><ErrorState message={(error as Error)?.message ?? 'Application not found'} /></Screen>;
 
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return 'N/A';
@@ -65,6 +55,8 @@ export default function ApplicationDetailScreen() {
       day: 'numeric',
     });
   };
+
+  const job = application.job;
 
   return (
     <View style={styles.container}>
@@ -79,21 +71,20 @@ export default function ApplicationDetailScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Scholarship Linked Section */}
+        {/* Job Linked Section */}
         <Pressable 
           style={styles.heroSection}
-          onPress={() => router.push(`/scholarship/${tracker.scholarshipId}`)}
+          onPress={() => router.push(`/job/${job.id}`)}
         >
           <View style={styles.heroTopRow}>
             <View style={styles.logoBox}>
-              <Ionicons name="school" size={32} color={colors.primary} />
+              <Ionicons name="briefcase" size={32} color={colors.primary} />
             </View>
-            <CountdownBadge days={tracker.deadlineCountdown} />
           </View>
-          <Text style={styles.heroTitle}>{tracker.scholarshipName}</Text>
-          <Text style={styles.heroSubtitle}>{tracker.scholarshipProvider}</Text>
+          <Text style={styles.heroTitle}>{job.title}</Text>
+          <Text style={styles.heroSubtitle}>{job.company}</Text>
           <View style={styles.viewDetailsRow}>
-             <Text style={styles.viewDetailsText}>View Scholarship Details</Text>
+             <Text style={styles.viewDetailsText}>View Job Details</Text>
              <Ionicons name="chevron-forward" size={16} color="#d5e3ff" />
           </View>
         </Pressable>
@@ -103,7 +94,7 @@ export default function ApplicationDetailScreen() {
           <Text style={styles.sectionTitle}>Application Status</Text>
           <View style={styles.statusGrid}>
             {applicationStatuses.map((status) => {
-              const isActive = tracker.status === status;
+              const isActive = application.status === status;
               return (
                 <View
                   key={status}
@@ -124,17 +115,17 @@ export default function ApplicationDetailScreen() {
           <View style={styles.genericCard}>
             <View style={styles.dateRow}>
               <Text style={styles.dateLabel}>Deadline</Text>
-              <Text style={styles.dateValue}>{formatDate(tracker.scholarshipDeadline)}</Text>
+              <Text style={styles.dateValue}>{formatDate(job.applicationDeadline)}</Text>
             </View>
             <View style={styles.divider} />
             <View style={styles.dateRow}>
-              <Text style={styles.dateLabel}>Submitted At</Text>
-              <Text style={styles.dateValue}>{formatDate(tracker.submittedAt)}</Text>
+              <Text style={styles.dateLabel}>Applied At</Text>
+              <Text style={styles.dateValue}>{formatDate(application.appliedAt)}</Text>
             </View>
             <View style={styles.divider} />
             <View style={styles.dateRow}>
-              <Text style={styles.dateLabel}>Awarded At</Text>
-              <Text style={styles.dateValue}>{formatDate(tracker.awardedAt)}</Text>
+              <Text style={styles.dateLabel}>Last Updated</Text>
+              <Text style={styles.dateValue}>{formatDate(application.updatedAt)}</Text>
             </View>
           </View>
         </View>
@@ -143,50 +134,11 @@ export default function ApplicationDetailScreen() {
         <View style={styles.section}>
           <View style={styles.notesHeaderRow}>
             <Text style={styles.sectionTitle}>My Notes</Text>
-            {!isEditingNotes ? (
-              <Pressable onPress={() => setIsEditingNotes(true)}>
-                <Ionicons name="pencil" size={20} color={colors.primary} />
-              </Pressable>
-            ) : null}
           </View>
           <View style={styles.notesCard}>
-            {isEditingNotes ? (
-              <View>
-                <TextInput
-                  style={[styles.notesInput, { minHeight: 100 }]}
-                  multiline
-                  textAlignVertical="top"
-                  value={notes}
-                  onChangeText={setNotes}
-                  placeholder="Add your personal notes, interview prep, or to-dos here..."
-                  placeholderTextColor={colors.muted}
-                />
-                <View style={styles.notesActions}>
-                  <Pressable 
-                    style={styles.cancelBtn} 
-                    onPress={() => {
-                      setNotes(tracker.notes || '');
-                      setIsEditingNotes(false);
-                    }}
-                  >
-                    <Text style={styles.cancelBtnText}>Cancel</Text>
-                  </Pressable>
-                  <Pressable 
-                    style={styles.saveBtn} 
-                    onPress={handleSaveNotes}
-                    disabled={updateMutation.isPending}
-                  >
-                    <Text style={styles.saveBtnText}>Save</Text>
-                  </Pressable>
-                </View>
-              </View>
-            ) : (
-              <Pressable onPress={() => setIsEditingNotes(true)}>
-                <Text style={[styles.notesText, tracker.notes ? undefined : styles.notesPlaceholder]}>
-                  {tracker.notes ? tracker.notes : 'Tap to add notes...'}
-                </Text>
-              </Pressable>
-            )}
+            <Text style={[styles.notesText, application.notes ? undefined : styles.notesPlaceholder]}>
+              {application.notes ? application.notes : 'No notes added for this job application.'}
+            </Text>
           </View>
         </View>
       </ScrollView>
@@ -204,7 +156,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-        paddingBottom: 10,
+    paddingBottom: 10,
     backgroundColor: colors.surface,
     zIndex: 10,
   },
@@ -226,7 +178,7 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   heroSection: {
-    backgroundColor: '#003366', // primary-container
+    backgroundColor: '#003366',
     borderRadius: 16,
     padding: 24,
     marginBottom: 24,
@@ -265,7 +217,7 @@ const styles = StyleSheet.create({
   heroSubtitle: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: 16,
-    color: '#d5e3ff', // primary-fixed-dim
+    color: '#d5e3ff',
     marginBottom: 16,
   },
   viewDetailsRow: {
@@ -363,41 +315,5 @@ const styles = StyleSheet.create({
   notesPlaceholder: {
     color: colors.muted,
     fontStyle: 'italic',
-  },
-  notesInput: {
-    fontFamily: 'BeVietnamPro_400Regular',
-    fontSize: 14,
-    color: colors.primary,
-    backgroundColor: '#f4f3f8',
-    borderRadius: 12,
-    padding: 12,
-    lineHeight: 22,
-  },
-  notesActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 12,
-    marginTop: 16,
-  },
-  cancelBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  cancelBtnText: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: 14,
-    color: colors.muted,
-  },
-  saveBtn: {
-    backgroundColor: '#003366',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  saveBtnText: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: 14,
-    color: '#ffffff',
-  },
+  }
 });

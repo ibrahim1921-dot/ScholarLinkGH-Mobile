@@ -140,6 +140,7 @@ export default function ProfileSummaryScreen() {
               <View style={styles.cardBody}>
                 {renderField('Language Proficiency', formatLanguages(profile?.languageProficiency))}
                 {renderField('Standardized Tests', profile?.standardizedTests)}
+                {renderField('Skills', profile?.skills?.join(', '))}
                 {renderField('Personal Bio', profile?.bio)}
                 {renderField('Achievements', profile?.achievements)}
               </View>
