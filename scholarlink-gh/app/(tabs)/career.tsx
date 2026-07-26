@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Alert, FlatList, Linking, StyleSheet, Text, View, Pressable, TextInput, ScrollView, Platform, ImageBackground, Modal, ActivityIndicator, SafeAreaView } from 'react-native';
+import { Alert, FlatList, Linking, StyleSheet, Text, View, Pressable, TextInput, ScrollView, Platform, ImageBackground, Modal, ActivityIndicator, SafeAreaView, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { Screen } from '../../components/Screen';
@@ -30,6 +30,7 @@ export default function CareerScreen() {
   const [cvModalVisible, setCvModalVisible] = useState(false);
   const [cvLoading, setCvLoading] = useState(false);
   const [generatedCv, setGeneratedCv] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const { data: savedJobs } = useSavedJobs();
   const toggleSaveMutation = useToggleSaveJob();
@@ -82,6 +83,12 @@ export default function CareerScreen() {
       }
     }
   }, [searchQuery]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadJobs(0);
+    setRefreshing(false);
+  }, [loadJobs]);
 
   useEffect(() => {
     loadJobs(0);
@@ -169,6 +176,7 @@ export default function CareerScreen() {
         keyExtractor={(j) => String(j.id)}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         ListHeaderComponent={
           <>
             {/* Search & Filter Section */}

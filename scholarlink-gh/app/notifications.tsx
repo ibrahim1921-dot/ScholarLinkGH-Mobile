@@ -18,6 +18,8 @@ import {
   useUnreadNotificationCount,
   useMarkNotificationRead,
   useMarkAllNotificationsRead,
+  useDeleteNotification,
+  useDeleteAllNotifications,
 } from "../hooks/useNotifications";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -116,9 +118,11 @@ const getNotificationStyle = (type: string) => {
 const NotificationCard = ({
   item,
   onPress,
+  onDelete,
 }: {
   item: Notification;
   onPress: () => void;
+  onDelete: () => void;
 }) => {
   const type = classifyNotification(item);
   const style = getNotificationStyle(type);
@@ -141,7 +145,12 @@ const NotificationCard = ({
           <Text style={[styles.cardTitle, !item.read && styles.cardTitleUnread]}>
             {item.title}
           </Text>
-          <Text style={styles.cardTime}>{formatTimestamp(item.createdAt)}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+            <Text style={styles.cardTime}>{formatTimestamp(item.createdAt)}</Text>
+            <Pressable onPress={onDelete} style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}>
+              <Ionicons name="trash-outline" size={16} color={colors.danger} />
+            </Pressable>
+          </View>
         </View>
         <Text style={styles.cardMessage}>{item.body}</Text>
         {!item.read && (
@@ -168,6 +177,8 @@ export default function NotificationsScreen() {
   const { data: unreadCount = 0 } = useUnreadNotificationCount();
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
+  const deleteNotification = useDeleteNotification();
+  const deleteAll = useDeleteAllNotifications();
 
   const allNotifications = useMemo(() => {
     return data?.pages.flatMap((page) => page.content) || [];
@@ -188,6 +199,14 @@ export default function NotificationsScreen() {
     if (unreadCount > 0) {
       markAllRead.mutate();
     }
+  };
+
+  const handleDelete = useCallback((item: Notification) => {
+    deleteNotification.mutate(item.id);
+  }, [deleteNotification]);
+
+  const handleClearAll = () => {
+    deleteAll.mutate();
   };
 
   const handleScroll = (event: any) => {
@@ -211,15 +230,26 @@ export default function NotificationsScreen() {
           <Ionicons name="arrow-back" size={24} color={colors.primary} />
         </Pressable>
         <Text style={styles.headerTitle}>Notifications</Text>
-        {unreadCount > 0 && (
-          <Pressable onPress={handleMarkAllRead} style={styles.markAllBtn} disabled={markAllRead.isPending}>
-            {markAllRead.isPending ? (
-              <ActivityIndicator size="small" color={colors.primary} />
-            ) : (
-              <Text style={styles.markAllText}>Mark all read</Text>
-            )}
-          </Pressable>
-        )}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          {unreadCount > 0 && (
+            <Pressable onPress={handleMarkAllRead} style={styles.markAllBtn} disabled={markAllRead.isPending}>
+              {markAllRead.isPending ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <Text style={styles.markAllText}>Mark all read</Text>
+              )}
+            </Pressable>
+          )}
+          {allNotifications.length > 0 && (
+            <Pressable onPress={handleClearAll} style={styles.markAllBtn} disabled={deleteAll.isPending}>
+              {deleteAll.isPending ? (
+                <ActivityIndicator size="small" color={colors.danger} />
+              ) : (
+                <Ionicons name="trash-outline" size={20} color={colors.danger} />
+              )}
+            </Pressable>
+          )}
+        </View>
       </View>
 
       {isLoading ? (
@@ -265,6 +295,7 @@ export default function NotificationsScreen() {
                     key={item.id}
                     item={item}
                     onPress={() => handlePress(item)}
+                    onDelete={() => handleDelete(item)}
                   />
                 ))}
               </View>
@@ -281,6 +312,7 @@ export default function NotificationsScreen() {
                     key={item.id}
                     item={item}
                     onPress={() => handlePress(item)}
+                    onDelete={() => handleDelete(item)}
                   />
                 ))}
               </View>
@@ -297,6 +329,7 @@ export default function NotificationsScreen() {
                     key={item.id}
                     item={item}
                     onPress={() => handlePress(item)}
+                    onDelete={() => handleDelete(item)}
                   />
                 ))}
               </View>

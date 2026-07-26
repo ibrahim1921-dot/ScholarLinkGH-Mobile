@@ -1,8 +1,8 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, router, Stack } from 'expo-router';
-import React from 'react';
-import { ImageBackground, StyleSheet, Text, View, ScrollView, Pressable } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { ImageBackground, StyleSheet, Text, View, ScrollView, Pressable, RefreshControl } from 'react-native';
 
 import { Screen } from '../../components/Screen';
 import { ErrorState, LoadingState } from '../../components/StateView';
@@ -19,8 +19,15 @@ export default function JobDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const jobId = Number(id);
 
-  const { data: job, isLoading, error, isError } = useJobDetail(jobId);
+  const { data: job, isLoading, error, isError, refetch } = useJobDetail(jobId);
   const applyFlow = useJobApplyFlow();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  }, [refetch]);
 
   if (isLoading) return <Screen scroll={false}><LoadingState /></Screen>;
   if (isError || !job) return <Screen scroll={false}><ErrorState message={(error as Error)?.message ?? 'Not found'} /></Screen>;
@@ -43,7 +50,11 @@ export default function JobDetailScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
         {/* Hero Section */}
         <ImageBackground
           source={job.imageUrl ? { uri: job.imageUrl } : PLACEHOLDER_IMAGE}

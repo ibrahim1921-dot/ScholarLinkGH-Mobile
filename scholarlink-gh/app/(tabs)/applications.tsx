@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { FlatList, StyleSheet, Text, View, Pressable, ScrollView, Platform, ImageBackground } from "react-native";
+import { StyleSheet, Text, View, Pressable, ScrollView, ImageBackground, RefreshControl } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
@@ -10,14 +10,13 @@ import { useJobApplications } from "../../hooks/useJob";
 import { Screen } from "../../components/Screen";
 import { BaseScholarshipCard } from "../../components/BaseScholarshipCard";
 import {
-  EmptyState,
   ErrorState,
   LoadingState,
 } from "../../components/StateView";
 import { UserAvatar } from "../../components/UserAvatar";
 import { colors } from "../../constants/colors";
 import { documentService } from "../../services/documentService";
-import { ApplicationTracker, JobApplication, UnifiedApplication } from "../../types/api";
+import { ApplicationTracker, UnifiedApplication } from "../../types/api";
 import { getCountdownLabel, formatDeadline } from "../../utils/date";
 
 type TabKey = 'in-progress' | 'submitted' | 'interview' | 'awarded' | 'rejected';
@@ -27,6 +26,7 @@ export default function ApplicationsScreen() {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<TabKey>('in-progress');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
+  const [refreshing, setRefreshing] = useState(false);
   
   const { data: trackers = [], isLoading: loadingTrackers, error: errorTrackers, refetch: fetchTrackers } = useTrackers();
   const { data: jobApps = [], isLoading: loadingJobs, error: errorJobs, refetch: fetchJobs } = useJobApplications();
@@ -43,7 +43,13 @@ export default function ApplicationsScreen() {
     fetchJobs();
   };
 
-  console.log("STEP 3: RAW HOOK OUTPUT", JSON.stringify(jobApps, null, 2));
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([fetchTrackers(), fetchJobs()]);
+    setRefreshing(false);
+  }, [fetchTrackers, fetchJobs]);
+
+
 
   // Merge into UnifiedApplication array
   const unifiedJobApps = jobApps.map((j): UnifiedApplication => ({
@@ -62,7 +68,7 @@ export default function ApplicationsScreen() {
       originalData: j,
     }));
 
-  console.log("STEP 4: MAPPED JOB APPS", JSON.stringify(unifiedJobApps, null, 2));
+
   const unifiedApplications: UnifiedApplication[] = [
     ...trackers.map((t): UnifiedApplication => ({
       type: 'scholarship',
@@ -82,7 +88,7 @@ export default function ApplicationsScreen() {
     ...unifiedJobApps,
   ].sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
 
-  console.log("STEP 5: FINAL MERGED ARRAY", JSON.stringify(unifiedApplications, null, 2));
+
 
   const getFilteredApps = () => {
     return unifiedApplications.filter((app) => {
@@ -166,10 +172,11 @@ export default function ApplicationsScreen() {
         imageStyle={{ resizeMode: "cover" }}
       >
         <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.primary, opacity: 0.65 }]} />
+        
         <View style={styles.headerLeft}>
-          <Text style={[styles.headerTitle, { color: '#ffffff' }]}>Application Tracker</Text>
+          <UserAvatar size={32} style={[styles.avatar, { borderColor: '#ffffff', borderWidth: 1, marginRight: 12 }]} />
+          <Text style={[styles.headerTitle, { color: '#ffffff' }]} numberOfLines={1}>Application Tracker</Text>
         </View>
-        <UserAvatar size={32} style={[styles.avatar, { borderColor: '#ffffff', borderWidth: 1 }]} />
       </ImageBackground>
 
       {/* Type Filter */}
@@ -204,7 +211,11 @@ export default function ApplicationsScreen() {
       </View>
 
       {/* Content */}
-      <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        contentContainerStyle={styles.contentContainer} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
         {filtered.length === 0 ? (
           <View style={styles.emptyCard}>
             <Ionicons name="folder-open-outline" size={48} color={colors.muted} style={{ marginBottom: 8 }} />
@@ -263,7 +274,7 @@ export default function ApplicationsScreen() {
                     </View>
                   </View>
                   {progressContent}
-                  <Pressable style={styles.btnPrimary} onPress={() => router.push(routeTarget)}>
+                  <Pressable style={styles.btnPrimary} onPress={() => router.push(routeTarget as any)}>
                     <Text style={styles.btnPrimaryText}>Next Steps</Text>
                   </Pressable>
                 </>
@@ -273,7 +284,7 @@ export default function ApplicationsScreen() {
                 <>
                   {progressContent}
                   <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <Pressable style={[styles.btnPrimary, { flex: 1, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#003366' }]} onPress={() => router.push(routeTarget)}>
+                    <Pressable style={[styles.btnPrimary, { flex: 1, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#003366' }]} onPress={() => router.push(routeTarget as any)}>
                       <Text style={[styles.btnPrimaryText, { color: '#003366' }]}>View Progress</Text>
                     </Pressable>
                     <Pressable style={[styles.btnPrimary, { flex: 1, backgroundColor: '#003366' }]} onPress={() => router.push("/ai-essay")}>
@@ -291,11 +302,11 @@ export default function ApplicationsScreen() {
                     <Text style={styles.submittedDateText}>
                       {status === 'REJECTED' 
                         ? (app.updatedAt ? `Rejected: ${formatDeadline(app.updatedAt)}` : 'Recently updated')
-                        : (app.originalData.submittedAt ? `Submitted: ${formatDeadline(app.originalData.submittedAt)}` : (app.originalData.appliedAt ? `Applied: ${formatDeadline(app.originalData.appliedAt)}` : 'Recently updated'))}
+                        : ((app.originalData as any).submittedAt ? `Submitted: ${formatDeadline((app.originalData as any).submittedAt)}` : ((app.originalData as any).appliedAt ? `Applied: ${formatDeadline((app.originalData as any).appliedAt)}` : 'Recently updated'))}
                     </Text>
                   </View>
                   {progressContent}
-                  <Pressable style={styles.viewDetailsBtn} onPress={() => router.push(routeTarget)}>
+                  <Pressable style={styles.viewDetailsBtn} onPress={() => router.push(routeTarget as any)}>
                     <Text style={styles.viewDetailsText}>View Progress</Text>
                     <Ionicons name="arrow-forward" size={18} color="#003366" />
                   </Pressable>
@@ -306,7 +317,7 @@ export default function ApplicationsScreen() {
               actionContent = (
                 <>
                   {progressContent}
-                  <Pressable style={styles.btnPrimary} onPress={() => router.push(routeTarget)}>
+                  <Pressable style={styles.btnPrimary} onPress={() => router.push(routeTarget as any)}>
                     <Ionicons name="analytics" size={18} color="#ffffff" style={{ marginRight: 8 }} />
                     <Text style={styles.btnPrimaryText}>View Progress</Text>
                   </Pressable>

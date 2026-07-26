@@ -91,3 +91,29 @@ export function useMarkAllNotificationsRead() {
     },
   });
 }
+
+export function useDeleteNotification() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: (id: number) => notificationService.deleteNotification(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications', user?.email] });
+      queryClient.invalidateQueries({ queryKey: ['unreadNotificationCount', user?.email] });
+    },
+  });
+}
+
+export function useDeleteAllNotifications() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: () => notificationService.deleteAllNotifications(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications', user?.email] });
+      queryClient.invalidateQueries({ queryKey: ['unreadNotificationCount', user?.email] });
+    },
+  });
+}

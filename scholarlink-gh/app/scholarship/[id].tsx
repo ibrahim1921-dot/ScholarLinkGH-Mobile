@@ -1,8 +1,8 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, router, Stack } from 'expo-router';
-import { useState } from 'react';
-import { Alert, ImageBackground, Linking, StyleSheet, Text, View, ScrollView, Pressable, Platform, Share } from 'react-native';
+import { useCallback, useState } from 'react';
+import { Alert, ImageBackground, Linking, StyleSheet, Text, View, ScrollView, Pressable, Platform, Share, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -24,7 +24,8 @@ export default function ScholarshipDetailScreen() {
     data: scholarship, 
     isLoading: isScholarshipLoading, 
     error: scholarshipError,
-    isError: isScholarshipError
+    isError: isScholarshipError,
+    refetch
   } = useScholarshipDetail(scholarshipId);
 
   const { data: eligibility } = useScholarshipEligibility(scholarshipId);
@@ -62,6 +63,13 @@ export default function ScholarshipDetailScreen() {
   const error = isScholarshipError ? (scholarshipError as Error)?.message ?? 'Failed to load scholarship' : null;
   const queryClient = useQueryClient();
   const applyFlow = useScholarshipApplyFlow();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  }, [refetch]);
 
   if (loading) return <Screen scroll={false}><LoadingState /></Screen>;
   if (error || !scholarship) return <Screen scroll={false}><ErrorState message={error ?? 'Not found'} /></Screen>;
@@ -97,7 +105,11 @@ export default function ScholarshipDetailScreen() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
         {/* Hero Section */}
         <ImageBackground
           source={scholarship.imageUrl ? { uri: scholarship.imageUrl } : require('../../assets/images/header-scholarships.jpg')}

@@ -35,15 +35,15 @@ export default function TabsLayout() {
           shadowRadius: 16,
           elevation: 4,
         },
-        tabBarIcon: ({ color, size }) => {
-          const icon = {
-            index: 'home-outline',
-            scholarships: 'school-outline',
-            applications: 'document-text-outline',
-            assistant: 'chatbubbles-outline',
-            career: 'compass-outline',
+        tabBarIcon: ({ color, size, focused }) => {
+          const iconName = {
+            index: focused ? 'home' : 'home-outline',
+            scholarships: focused ? 'school' : 'school-outline',
+            applications: focused ? 'document-text' : 'document-text-outline',
+            assistant: focused ? 'chatbubbles' : 'chatbubbles-outline',
+            career: focused ? 'compass' : 'compass-outline',
           }[route.name] as keyof typeof Ionicons.glyphMap;
-          return <Ionicons name={icon} color={color} size={size} />;
+          return <Ionicons name={iconName} color={color} size={size} />;
         },
       })}
     >

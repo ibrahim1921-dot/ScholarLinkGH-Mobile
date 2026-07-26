@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { FlatList, StyleSheet, View, Text, Pressable, ScrollView, ImageBackground, ActivityIndicator } from 'react-native';
+import { FlatList, StyleSheet, View, Text, Pressable, ScrollView, ImageBackground, ActivityIndicator, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { AppTextInput } from '../../components/AppTextInput';
@@ -50,12 +50,25 @@ export default function ScholarshipsScreen() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadPage(0);
+    setRefreshing(false);
+  }, [loadPage]);
 
   // ── Filter state (mutual exclusivity enforced via single ActiveFilter) ──
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>(null);
 
   // ── Matches state (relocated from Home) ──
-  const { data: matchesData = [] } = useScholarshipMatches();
+  const { data: matchesData = [], refetch: refetchMatches } = useScholarshipMatches();
+  
+  const onRefreshMatches = useCallback(async () => {
+    setRefreshing(true);
+    await refetchMatches();
+    setRefreshing(false);
+  }, [refetchMatches]);
   const triggerMatchingMutation = useTriggerMatching();
   const [matchCooldown, setMatchCooldown] = useState(0);
 
@@ -324,7 +337,11 @@ export default function ScholarshipsScreen() {
       {/* Scholarship Feed */}
       {activeFilter?.type === 'matches' ? (
         // ── Matches view (custom rendering) ──
-        <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          contentContainerStyle={styles.list} 
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefreshMatches} />}
+        >
           {matchesData.length > 0 ? (
             <>
               {/* Section header with refresh button */}
@@ -402,6 +419,7 @@ export default function ScholarshipsScreen() {
         <FlatList
           data={displayData}
           keyExtractor={(s) => String(s.id)}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           renderItem={({ item }) => (
             <ScholarshipCard
               scholarship={item}

@@ -11,15 +11,22 @@ interface DocumentCardProps {
 
 export const getStatusIcon = (status: string) => {
   if (status === 'VERIFIED') return 'checkmark-circle';
-  if (status === 'SUSPICIOUS' || status === 'REJECTED') return 'warning';
+  if (status === 'REJECTED') return 'close-circle';
+  // SUSPICIOUS and PENDING show the same neutral icon
   return 'time';
 };
 
 export const getStatusColors = (status: string) => {
   if (status === 'VERIFIED') return { bg: '#a0f399', text: '#005312', icon: '#217128', border: '#1b6d24' };
-  if (status === 'SUSPICIOUS' || status === 'REJECTED') return { bg: '#ffdad6', text: '#93000a', icon: '#ba1a1a', border: '#ba1a1a' };
-  if (status === 'PENDING') return { bg: '#e0e2ec', text: '#44474f', icon: '#74777f', border: '#74777f' };
-  return { bg: '#ffdbca', text: '#723610', icon: '#d8885c', border: '#ffb690' };
+  if (status === 'REJECTED') return { bg: '#ffdad6', text: '#410002', icon: '#ba1a1a', border: '#93000a' };
+  // SUSPICIOUS and PENDING show neutral colors
+  return { bg: '#e0e2ec', text: '#44474f', icon: '#74777f', border: '#74777f' };
+};
+
+export const getDisplayStatus = (status: string) => {
+  if (status === 'VERIFIED') return 'Verified';
+  if (status === 'REJECTED') return 'Rejected';
+  return 'Pending Review';
 };
 
 export function DocumentCard({ item, onDelete }: DocumentCardProps) {
@@ -44,19 +51,15 @@ export function DocumentCard({ item, onDelete }: DocumentCardProps) {
           <View style={[styles.statusBadge, { backgroundColor: statusColors.bg }]}>
             <Ionicons name={getStatusIcon(item.verification_status)} size={12} color={statusColors.text} />
             <Text style={[styles.statusBadgeText, { color: statusColors.text }]}>
-              {item.verification_status}
+              {getDisplayStatus(item.verification_status)}
             </Text>
           </View>
         </View>
       </View>
-
       {item.verification_notes ? (
-        <View style={[styles.aiInsightBox, { borderLeftColor: statusColors.border }]}>
-          <Ionicons name="checkmark-circle" size={16} color="#005312" style={{ marginRight: 4 }} />
-          <Text style={[styles.aiInsightText, item.verification_status === 'SUSPICIOUS' && { color: statusColors.icon }]}>
-            <Text style={{ fontWeight: '700' }}>AI Insight: </Text>
-            {item.verification_notes}
-          </Text>
+        <View style={styles.notesContainer}>
+          <Ionicons name="information-circle" size={14} color={colors.muted} />
+          <Text style={styles.notesText}>{item.verification_notes}</Text>
         </View>
       ) : null}
     </View>
@@ -128,20 +131,21 @@ const styles = StyleSheet.create({
     fontSize: 10,
     textTransform: 'capitalize',
   },
-  aiInsightBox: {
-    backgroundColor: '#f4f3f8', // surface-container-low
-    padding: 8,
-    borderRadius: 8,
-    borderLeftWidth: 4,
+  notesContainer: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
     gap: 8,
+    backgroundColor: '#f8f9fa',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginTop: 4,
   },
-  aiInsightText: {
+  notesText: {
     flex: 1,
-    fontFamily: 'BeVietnamPro_400Regular',
+    fontFamily: 'PlusJakartaSans_500Medium',
     fontSize: 12,
-    color: colors.muted,
+    color: colors.ink,
     lineHeight: 18,
-  },
+  }
 });
