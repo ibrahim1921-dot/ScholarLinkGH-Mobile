@@ -81,24 +81,6 @@ export default function LoginScreen() {
             loading={loading} 
             style={styles.loginButton}
           />
-          
-          <View style={styles.dividerContainer}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          <Pressable 
-            style={({ pressed }) => [
-              styles.googleButton,
-              pressed && { opacity: 0.82 }
-            ]}
-            onPress={() => {}}
-          >
-            <Ionicons name="logo-google" size={20} color="#ea4335" />
-            <Text style={styles.googleButtonText}>Sign in with Google</Text>
-          </Pressable>
-
           <View style={styles.footer}>
             <Text style={styles.footerText}>New to ScholarLink? </Text>
             <Link href="/(auth)/register" style={styles.footerLink}>
@@ -157,38 +139,6 @@ const styles = StyleSheet.create({
   loginButton: {
     backgroundColor: "#003366",
     borderRadius: 12,
-  },
-  dividerContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 16,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: "#c3c6d1",
-  },
-  dividerText: {
-    paddingHorizontal: 12,
-    color: "#43474f",
-    fontSize: 12,
-    fontFamily: "BeVietnamPro_600SemiBold",
-  },
-  googleButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#ffffff",
-    borderWidth: 2,
-    borderColor: "#c3c6d1",
-    borderRadius: 12,
-    minHeight: 48,
-    gap: 12, // gap-gutter
-  },
-  googleButtonText: {
-    color: "#1a1c1f", // text-on-surface
-    fontSize: 18, // font-title-md
-    fontFamily: "PlusJakartaSans_600SemiBold",
   },
   footer: { 
     alignItems: "center", 

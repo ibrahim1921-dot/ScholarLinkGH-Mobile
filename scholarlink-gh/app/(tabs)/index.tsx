@@ -288,18 +288,6 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* Compact AI Coach Banner */}
-        <Pressable style={styles.aiCoachSmallCard} onPress={() => router.push("/ai-essay")}>
-          <View style={styles.aiCoachIconBg}>
-            <MaterialCommunityIcons name="brain" size={24} color={colors.primary} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.aiCoachTitle}>AI Essay Coach</Text>
-            <Text style={styles.aiCoachDesc}>Practice your interview & essay</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={colors.muted} />
-        </Pressable>
-
       </ScrollView>
     </View>
   );
@@ -624,39 +612,4 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  // Compact AI Coach Banner
-  aiCoachSmallCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 16,
-    padding: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 1,
-    marginTop: 8,
-  },
-  aiCoachIconBg: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(27, 109, 36, 0.1)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  aiCoachTitle: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 16,
-    color: colors.primary,
-    marginBottom: 2,
-  },
-  aiCoachDesc: {
-    fontFamily: "BeVietnamPro_400Regular",
-    fontSize: 13,
-    color: colors.muted,
-  },
-
 });

@@ -283,15 +283,10 @@ export default function ApplicationsScreen() {
               actionContent = (
                 <>
                   {progressContent}
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <Pressable style={[styles.btnPrimary, { flex: 1, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#003366' }]} onPress={() => router.push(routeTarget as any)}>
-                      <Text style={[styles.btnPrimaryText, { color: '#003366' }]}>View Progress</Text>
-                    </Pressable>
-                    <Pressable style={[styles.btnPrimary, { flex: 1, backgroundColor: '#003366' }]} onPress={() => router.push("/ai-essay")}>
-                      <Ionicons name="hardware-chip" size={20} color="#ffffff" />
-                      <Text style={styles.btnPrimaryText}>AI Coach</Text>
-                    </Pressable>
-                  </View>
+                  <Pressable style={styles.btnPrimary} onPress={() => router.push(routeTarget as any)}>
+                    <Ionicons name="analytics" size={18} color="#ffffff" style={{ marginRight: 8 }} />
+                    <Text style={styles.btnPrimaryText}>View Progress</Text>
+                  </Pressable>
                 </>
               );
             } else if (activeTab === 'submitted' || activeTab === 'rejected') {

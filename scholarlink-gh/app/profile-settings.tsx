@@ -21,9 +21,17 @@ import { StudentProfile } from "../types/api";
 import { useState, useEffect } from "react";
 import * as ImagePicker from "expo-image-picker";
 
-const SETTINGS_ITEMS = [
+type SettingsItem = {
+  id: string;
+  title: string;
+  icon: string;
+  route?: string;
+  disabled?: boolean;
+};
+
+const SETTINGS_ITEMS: SettingsItem[] = [
   { id: 'vault', title: 'Document Vault', icon: 'folder-open-outline', route: '/documents' },
-  { id: 'security', title: 'Security & Password', icon: 'lock-closed-outline', disabled: true },
+  { id: 'security', title: 'Security & Password', icon: 'lock-closed-outline', route: '/security' },
 ];
 
 export default function ProfileSettingsScreen() {
@@ -67,13 +75,13 @@ export default function ProfileSettingsScreen() {
           name: asset.fileName || 'profile.jpg',
           mimeType: asset.mimeType || 'image/jpeg',
         });
-        
+
         // Optimistically update the UI, or just reload profile
         if (res.success && res.message) {
-           setProfile(prev => prev ? { ...prev, profilePictureUrl: res.message } : null);
-           updateUser({ profilePictureUrl: res.message });
+          setProfile(prev => prev ? { ...prev, profilePictureUrl: res.message } : null);
+          updateUser({ profilePictureUrl: res.message });
         } else {
-           Alert.alert("Error", "Could not upload profile picture.");
+          Alert.alert("Error", "Could not upload profile picture.");
         }
       }
     } catch (error: any) {
@@ -91,7 +99,7 @@ export default function ProfileSettingsScreen() {
           <Pressable onPress={() => router.back()} style={styles.iconButton}>
             <Ionicons name="arrow-back" size={24} color={colors.primary} />
           </Pressable>
-          <Text style={styles.headerTitle}>Profile</Text>
+          <Text style={styles.headerTitle}>Settings</Text>
         </View>
         {/* Placeholder for balance, if needed. Or just leave empty. */}
         <View style={{ width: 40 }} />
@@ -102,8 +110,8 @@ export default function ProfileSettingsScreen() {
         <View style={styles.profileHeader}>
           <View style={styles.avatarContainer}>
             <UserAvatar size={128} style={styles.avatar} imageUrl={profile?.profilePictureUrl} />
-            <Pressable 
-              style={[styles.editAvatarButton, uploading && { opacity: 0.5 }]} 
+            <Pressable
+              style={[styles.editAvatarButton, uploading && { opacity: 0.5 }]}
               onPress={pickImage}
               disabled={uploading}
             >
@@ -117,7 +125,7 @@ export default function ProfileSettingsScreen() {
             <Text style={styles.locationText}>{profile?.countryPreference || "Location not set"}</Text>
           </View>
 
-          <Pressable 
+          <Pressable
             style={styles.editProfileButton}
             onPress={() => router.push('/profile-summary')}
           >
@@ -125,33 +133,7 @@ export default function ProfileSettingsScreen() {
           </Pressable>
         </View>
 
-        {/* Premium Status Card */}
-        <View style={styles.premiumCard}>
-          <View style={styles.premiumHeader}>
-            <View style={styles.premiumTextContainer}>
-              <View style={styles.premiumBadge}>
-                <Text style={styles.premiumBadgeText}>SCHOLARLINK PLUS</Text>
-              </View>
-              <Text style={styles.premiumTitle}>Unlock AI Essay Review</Text>
-              <Text style={styles.premiumSubtitle}>
-                Get personalized feedback on your applications and scholarship essays.
-              </Text>
-            </View>
-            <View style={styles.premiumIconContainer}>
-              <Ionicons name="sparkles" size={24} color="#ffffff" />
-            </View>
-          </View>
 
-          <View style={styles.premiumFooter}>
-            <View>
-              <Text style={styles.premiumStatusLabel}>STATUS</Text>
-              <Text style={styles.premiumStatusValue}>Coming Soon</Text>
-            </View>
-            <Pressable style={[styles.premiumButton, { opacity: 0.6 }]} disabled={true}>
-              <Text style={styles.premiumButtonText}>COMING SOON</Text>
-            </Pressable>
-          </View>
-        </View>
 
         {/* Settings List */}
         <View style={styles.section}>
@@ -315,85 +297,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: "#ffffff",
   },
-  premiumCard: {
-    backgroundColor: "#003366", // primary-container
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 24,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  premiumHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 16,
-  },
-  premiumTextContainer: {
-    flex: 1,
-    paddingRight: 16,
-  },
-  premiumBadge: {
-    backgroundColor: "#a0f399", // secondary-container
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
-    alignSelf: "flex-start",
-    marginBottom: 8,
-  },
-  premiumBadgeText: {
-    fontFamily: "BeVietnamPro_600SemiBold",
-    fontSize: 10,
-    color: "#005312",
-  },
-  premiumTitle: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 18,
-    color: "#ffffff",
-    marginBottom: 4,
-  },
-  premiumSubtitle: {
-    fontFamily: "BeVietnamPro_400Regular",
-    fontSize: 14,
-    color: "rgba(255,255,255,0.8)",
-  },
-  premiumIconContainer: {
-    backgroundColor: "rgba(255,255,255,0.2)",
-    padding: 8,
-    borderRadius: 8,
-  },
-  premiumFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.1)",
-    paddingTop: 16,
-  },
-  premiumStatusLabel: {
-    fontFamily: "BeVietnamPro_600SemiBold",
-    fontSize: 10,
-    color: "rgba(255,255,255,0.6)",
-  },
-  premiumStatusValue: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 18,
-    color: "#ffffff",
-  },
-  premiumButton: {
-    backgroundColor: "#ffffff",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  premiumButtonText: {
-    fontFamily: "BeVietnamPro_700Bold",
-    fontSize: 12,
-    color: "#003366",
-  },
+
   section: {
     marginBottom: 24,
   },
