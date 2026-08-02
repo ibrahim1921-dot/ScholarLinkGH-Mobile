@@ -69,10 +69,10 @@ export function ScholarshipCard({ scholarship, match, onPress }: Props) {
   const provider = scholarship?.provider ?? match?.provider ?? "";
   const deadline = scholarship?.deadline ?? match?.deadline;
   const country = scholarship?.destinationCountry ?? match?.destinationCountry;
-  const days = scholarship?.daysUntilDeadline;
+  const days = scholarship?.daysUntilDeadline ?? match?.daysUntilDeadline;
   const field = scholarship?.eligibleFields;
   const imageUrl = scholarship?.imageUrl;
-  const status = scholarship?.status;
+  const status = scholarship?.status ?? match?.status;
 
   const countdownLabel = getCountdownLabel(days);
   const statusInfo = getStatusInfo(status, days);
@@ -95,6 +95,8 @@ export function ScholarshipCard({ scholarship, match, onPress }: Props) {
       imageUrl={imageUrl}
       countdownLabel={countdownLabel}
       matchScore={match?.matchScore}
+      sponsored={scholarship?.sponsored}
+      fee={scholarship?.assistedApplicationFee}
       onPress={onPress}
       statusBadge={statusBadge}
     />

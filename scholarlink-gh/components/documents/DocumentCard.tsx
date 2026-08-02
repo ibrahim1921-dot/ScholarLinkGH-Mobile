@@ -7,6 +7,7 @@ import { DocumentUpload } from '../../types/api';
 interface DocumentCardProps {
   item: DocumentUpload;
   onDelete: (id: number) => void;
+  onView?: (item: DocumentUpload) => void;
 }
 
 export const getStatusIcon = (status: string) => {
@@ -29,7 +30,7 @@ export const getDisplayStatus = (status: string) => {
   return 'Pending Review';
 };
 
-export function DocumentCard({ item, onDelete }: DocumentCardProps) {
+export function DocumentCard({ item, onDelete, onView }: DocumentCardProps) {
   const statusColors = getStatusColors(item.verification_status);
 
   return (
@@ -45,9 +46,16 @@ export function DocumentCard({ item, onDelete }: DocumentCardProps) {
           </View>
         </View>
         <View style={{ alignItems: 'flex-end', gap: 8 }}>
-          <Pressable onPress={() => onDelete(item.id)} hitSlop={10} style={styles.deleteButton}>
-            <Ionicons name="trash-outline" size={18} color={colors.danger} />
-          </Pressable>
+          <View style={{ flexDirection: 'row', gap: 4 }}>
+            {onView && (
+              <Pressable onPress={() => onView(item)} hitSlop={10} style={styles.actionButton}>
+                <Ionicons name="download-outline" size={18} color={colors.primary} />
+              </Pressable>
+            )}
+            <Pressable onPress={() => onDelete(item.id)} hitSlop={10} style={styles.actionButton}>
+              <Ionicons name="trash-outline" size={18} color={colors.danger} />
+            </Pressable>
+          </View>
           <View style={[styles.statusBadge, { backgroundColor: statusColors.bg }]}>
             <Ionicons name={getStatusIcon(item.verification_status)} size={12} color={statusColors.text} />
             <Text style={[styles.statusBadgeText, { color: statusColors.text }]}>
@@ -115,7 +123,7 @@ const styles = StyleSheet.create({
     color: colors.muted,
     textTransform: 'uppercase',
   },
-  deleteButton: {
+  actionButton: {
     padding: 4,
   },
   statusBadge: {

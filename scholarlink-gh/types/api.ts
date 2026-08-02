@@ -31,6 +31,7 @@ export type StudentProfile = {
   gpa?: number;
   fieldOfStudy?: string;
   institution?: string;
+  originalLocation?: string;
   graduationYear?: number;
   countryPreference?: string;
   languageProficiency?: string;
@@ -44,6 +45,8 @@ export type StudentProfile = {
   documentDisclaimerAcceptedAt?: string | null;
   skills?: string[];
   profilePictureUrl?: string | null;
+  aiCreditsRemaining?: number;
+  aiCreditsUsedTotal?: number;
 };
 
 export type ProfilePayload = {
@@ -51,6 +54,7 @@ export type ProfilePayload = {
   gpa?: number;
   field_of_study?: string;
   institution?: string;
+  original_location?: string;
   graduation_year?: number;
   country_preference?: string;
   language_proficiency?: string;
@@ -82,6 +86,8 @@ export type Scholarship = {
   verified: boolean;
   allowsAssistedApplication?: boolean;
   assistedApplicationFee?: number;
+  sponsored?: boolean;
+  sponsorName?: string | null;
   reportCount?: number;
   createdAt: string;
 };
@@ -95,6 +101,8 @@ export type ScholarshipMatch = {
   deadline: string;
   fundingCoverage: string;
   officialLink: string;
+  daysUntilDeadline?: number;
+  status?: 'OPEN' | 'CLOSING_SOON' | 'CLOSED' | 'FULL' | null;
   matchScore: number;
   matchExplanation: string;
   matchedAt: string;
@@ -168,6 +176,10 @@ export type JobListing = {
   employmentType?: 'FULL_TIME' | 'PART_TIME' | 'INTERNSHIP' | 'CONTRACT' | 'TEMPORARY';
   experienceLevel?: 'ENTRY_LEVEL' | 'GRADUATE' | 'MID_LEVEL' | 'SENIOR';
   workMode?: 'REMOTE' | 'HYBRID' | 'ON_SITE';
+  allowsAssistedApplication?: boolean;
+  assistedApplicationFee?: number;
+  sponsored?: boolean;
+  sponsorName?: string | null;
   createdAt: string;
 };
 

@@ -18,6 +18,7 @@ export default function ProfileSetupScreen() {
   const { user } = useAuth();
   const [educationLevel, setEducationLevel] = useState('');
   const [institution, setInstitution] = useState('');
+  const [originalLocation, setOriginalLocation] = useState('');
   const [fieldOfStudy, setFieldOfStudy] = useState('');
   const [gpa, setGpa] = useState('3.5');
   const [graduationYear, setGraduationYear] = useState<number | null>(null);
@@ -33,6 +34,7 @@ export default function ProfileSetupScreen() {
         const profile = await profileService.getProfile();
         if (profile.educationLevel) setEducationLevel(profile.educationLevel);
         if (profile.institution) setInstitution(profile.institution);
+        if (profile.originalLocation) setOriginalLocation(profile.originalLocation);
         if (profile.fieldOfStudy) setFieldOfStudy(profile.fieldOfStudy);
         if (profile.gpa) setGpa(profile.gpa.toString());
         if (profile.graduationYear) setGraduationYear(profile.graduationYear);
@@ -56,6 +58,7 @@ export default function ProfileSetupScreen() {
       await profileService.updateProfile({
         education_level: educationLevel as any,
         institution,
+        original_location: originalLocation,
         field_of_study: fieldOfStudy,
         gpa: gpa ? parseFloat(gpa) : undefined,
         graduation_year: graduationYear,
@@ -159,6 +162,16 @@ export default function ProfileSetupScreen() {
                   value={institution}
                   onChangeText={setInstitution}
                   placeholder="e.g. University of Ghana"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Original Location</Text>
+                <AppTextInput
+                  label=""
+                  value={originalLocation}
+                  onChangeText={setOriginalLocation}
+                  placeholder="e.g. Accra, Ghana"
                 />
               </View>
 

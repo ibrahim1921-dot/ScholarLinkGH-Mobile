@@ -100,15 +100,5 @@ export const authService = {
       const message = error.response?.data?.message || error.message || 'Something went wrong';
       throw new Error(message);
     }
-  },
-
-  async logoutAllDevices(): Promise<string> {
-    try {
-      const response = await apiClient.post<ApiResponse>('/api/v1/auth/logout-all-devices');
-      return response.data.message;
-    } catch (error: any) {
-      const message = error.response?.data?.message || error.message || 'Something went wrong';
-      throw new Error(message);
-    }
   }
 };

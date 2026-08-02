@@ -2,9 +2,9 @@ import { ApiResponse, ScholarshipMatch } from '../types/api';
 import { apiClient } from './apiClient';
 
 export const aiService = {
-  async getScholarshipMatches(): Promise<ScholarshipMatch[]> {
+  async getScholarshipMatches(refresh: boolean = false): Promise<ScholarshipMatch[]> {
     try {
-      const response = await apiClient.get<ScholarshipMatch[]>('/api/v1/ai/scholarships/matches');
+      const response = await apiClient.get<ScholarshipMatch[]>(`/api/v1/ai/scholarships/matches?refresh=${refresh}`);
       return response.data;
     } catch (error: any) {
       const message = error.response?.data?.message || error.message || 'Something went wrong';
@@ -98,6 +98,16 @@ export const aiService = {
       }
       const errMessage = error.response?.data?.message || error.message || 'Something went wrong';
       throw new Error(errMessage);
+    }
+  },
+
+  async getAiCredits(): Promise<number> {
+    try {
+      const response = await apiClient.get<{ aiCreditsRemaining: number }>('/api/v1/ai/credits');
+      return response.data.aiCreditsRemaining;
+    } catch (error: any) {
+      console.error("getAiCredits error:", error);
+      return 0;
     }
   },
 };

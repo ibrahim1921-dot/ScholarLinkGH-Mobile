@@ -2,7 +2,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, router, Stack } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert, ImageBackground, Linking, StyleSheet, Text, View, ScrollView, Pressable, Platform, Share, RefreshControl } from 'react-native';
+import { Alert, ImageBackground, Linking, StyleSheet, Text, View, ScrollView, Pressable, Platform, Share, RefreshControl, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -12,13 +12,30 @@ import { ErrorState, LoadingState } from '../../components/StateView';
 import { colors } from '../../constants/colors';
 import { trackerService } from '../../services/trackerService';
 import { useScholarshipDetail, useScholarshipEligibility, useSavedScholarships, useToggleSaveScholarship, useReportScholarship } from '../../hooks/useScholarship';
+import { useProfileCompleteness } from '../../hooks/useProfile';
 import { useScholarshipApplyFlow } from '../../hooks/useScholarshipApplyFlow';
 import { ScholarshipApplyModals } from '../../components/ScholarshipApplyModals';
+import { usePayment } from '../../hooks/usePayment';
+import { paymentService } from '../../services/paymentService';
+import { isOutOfCreditsError, BUNDLE_CREDITS, BUNDLE_PRICE_GHS } from '../../utils/creditUtils';
+import { OutOfCreditsModal } from '../../components/OutOfCreditsModal';
 
 export default function ScholarshipDetailScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const scholarshipId = Number(id);
+
+  const { data: completenessData } = useProfileCompleteness();
+  const completenessScore = completenessData?.completeness ?? 0;
+  const nextStep = completenessData?.nextStep ?? "/profile-setup";
+
+  const handleProfilePress = () => {
+    if (completenessScore === 100) {
+      router.push("/profile-summary");
+    } else {
+      router.push(nextStep as any);
+    }
+  };
 
   const { 
     data: scholarship, 
@@ -28,7 +45,8 @@ export default function ScholarshipDetailScreen() {
     refetch
   } = useScholarshipDetail(scholarshipId);
 
-  const { data: eligibility } = useScholarshipEligibility(scholarshipId);
+  const [eligibilityRequested, setEligibilityRequested] = useState(false);
+  const { data: eligibility, error: eligibilityError, refetch: refetchEligibility, isFetching: isEligibilityFetching } = useScholarshipEligibility(scholarshipId, eligibilityRequested);
   const { data: savedScholarships } = useSavedScholarships();
   const toggleSaveMutation = useToggleSaveScholarship();
   const reportMutation = useReportScholarship();
@@ -64,6 +82,16 @@ export default function ScholarshipDetailScreen() {
   const queryClient = useQueryClient();
   const applyFlow = useScholarshipApplyFlow();
   const [refreshing, setRefreshing] = useState(false);
+  const [outOfCreditsVisible, setOutOfCreditsVisible] = useState(false);
+  const { paymentLoading, processPayment, renderPaymentResult } = usePayment();
+
+  const executePurchase = async () => {
+    setOutOfCreditsVisible(false);
+    const result = await processPayment((callbackUrl) => paymentService.initializeAiCreditPurchase(callbackUrl));
+    if (result === 'SUCCESS') {
+      refetchEligibility();
+    }
+  };
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -76,6 +104,12 @@ export default function ScholarshipDetailScreen() {
 
   return (
     <View style={styles.container}>
+      {renderPaymentResult()}
+      <OutOfCreditsModal 
+        visible={outOfCreditsVisible} 
+        onClose={() => setOutOfCreditsVisible(false)} 
+        onBuy={executePurchase} 
+      />
       <Stack.Screen options={{ headerShown: false }} />
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
@@ -148,8 +182,18 @@ export default function ScholarshipDetailScreen() {
             {scholarship.provider} {scholarship.destinationCountry ? `• ${scholarship.destinationCountry}` : ''}
             {scholarship.category ? ` • ${scholarship.category.replace(/_/g, ' ')}` : ''}
           </Text>
+          {scholarship.sponsored && (
+            <Text style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 14, color: '#a0f399', marginTop: 4 }}>
+              Sponsored by {scholarship.sponsorName || scholarship.provider}
+            </Text>
+          )}
           {scholarship.eligibleFields && (
             <View style={styles.chipContainer}>
+              {scholarship.sponsored && (
+                <View style={[styles.chip, { backgroundColor: 'rgba(160, 243, 153, 0.2)', borderColor: 'rgba(160, 243, 153, 0.5)' }]}>
+                  <Text style={[styles.chipText, { color: '#a0f399' }]}>Free to Apply</Text>
+                </View>
+              )}
               {scholarship.eligibleFields.split(',').map((f, i) => (
                 <View key={i} style={styles.chip}>
                   <Text style={styles.chipText}>{f.trim()}</Text>
@@ -160,27 +204,70 @@ export default function ScholarshipDetailScreen() {
         </ImageBackground>
 
         {/* Eligibility Checklist */}
-        {(eligibility || scholarship.gpaRequirement > 0) && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Eligibility Checklist</Text>
-            <View style={styles.checklistCard}>
-              {scholarship.gpaRequirement > 0 && (
-                <View style={styles.checklistItem}>
-                  <View style={styles.checklistLeft}>
-                    <View style={styles.checkIconBox}>
-                      <Ionicons name="checkmark-circle" size={20} color="#1b6d24" />
-                    </View>
-                    <Text style={styles.checklistText}>GPA &ge; {scholarship.gpaRequirement}</Text>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Eligibility Checklist</Text>
+          <View style={styles.checklistCard}>
+            {scholarship.gpaRequirement > 0 && (
+              <View style={styles.checklistItem}>
+                <View style={styles.checklistLeft}>
+                  <View style={styles.checkIconBox}>
+                    <Ionicons name="checkmark-circle" size={20} color="#1b6d24" />
                   </View>
-                  <View style={styles.statusBadgeMet}>
-                    <Text style={styles.statusBadgeTextMet}>Requirement</Text>
-                  </View>
+                  <Text style={styles.checklistText}>GPA &ge; {scholarship.gpaRequirement}</Text>
                 </View>
-              )}
+                <View style={styles.statusBadgeMet}>
+                  <Text style={styles.statusBadgeTextMet}>Requirement</Text>
+                </View>
+              </View>
+            )}
 
-              {eligibility?.criteria ? (
+            {!eligibility && !eligibilityRequested && !isOutOfCreditsError(eligibilityError) ? (
+              <View style={[styles.checklistItem, { flexDirection: 'column', alignItems: 'center', paddingVertical: 24, gap: 12 }]}>
+                <Text style={[styles.checklistText, { color: colors.muted, textAlign: 'center' }]}>
+                  {completenessScore < 45 ? `Complete your profile to unlock AI eligibility matching (${completenessScore}% complete).` : "Check if you're eligible for this scholarship."}
+                </Text>
+                <Pressable 
+                  style={[styles.actionBtnPrimary, { width: 200, height: 40 }]} 
+                  onPress={() => {
+                    if (completenessScore < 45) {
+                      handleProfilePress();
+                      return;
+                    }
+                    setEligibilityRequested(true);
+                    refetchEligibility();
+                  }}
+                >
+                  <Text style={[styles.actionBtnPrimaryText, { fontSize: 14 }]}>{completenessScore < 45 ? "Complete Profile" : "View Eligibility"}</Text>
+                </Pressable>
+              </View>
+            ) : isEligibilityFetching && !eligibility ? (
+              <View style={[styles.checklistItem, { justifyContent: 'center', paddingVertical: 32 }]}>
+                <ActivityIndicator color={colors.primary} size="large" />
+              </View>
+            ) : isOutOfCreditsError(eligibilityError) ? (
+                <View style={[styles.checklistItem, { flexDirection: 'column', alignItems: 'flex-start', gap: 12 }]}>
+                  <Text style={[styles.checklistText, { color: colors.muted }]}>
+                    You've used all your AI credits. Purchase a bundle to unlock eligibility checking.
+                  </Text>
+                  <Pressable 
+                    style={[styles.actionBtnPrimary, { width: '100%', height: 40 }]} 
+                    onPress={() => setOutOfCreditsVisible(true)}
+                    disabled={paymentLoading}
+                  >
+                    <Text style={[styles.actionBtnPrimaryText, { fontSize: 14 }]}>
+                      {paymentLoading ? "Processing" : `Buy ${BUNDLE_CREDITS} Credits — ₵${BUNDLE_PRICE_GHS}`}
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : eligibilityError && !isOutOfCreditsError(eligibilityError) ? (
+                <View style={[styles.checklistItem, { flexDirection: 'column', alignItems: 'flex-start', gap: 12 }]}>
+                  <Text style={[styles.checklistText, { color: '#ba1a1a' }]}>
+                    {(eligibilityError as Error).message || "Failed to check eligibility"}
+                  </Text>
+                </View>
+              ) : eligibility?.criteria ? (
                 eligibility.criteria.length > 0 ? (
-                  eligibility.criteria.map((criterion, index) => (
+                  eligibility.criteria.map((criterion: any, index: number) => (
                     <View key={`criterion-${index}`} style={styles.checklistItem}>
                       <View style={styles.checklistLeft}>
                         <View style={criterion.met ? styles.checkIconBox : styles.reviewIconBox}>
@@ -216,7 +303,6 @@ export default function ScholarshipDetailScreen() {
               ) : null}
             </View>
           </View>
-        )}
 
         {/* Benefits & Funding */}
         <View style={styles.section}>

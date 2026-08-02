@@ -25,7 +25,6 @@ export default function SecurityScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   
   const [isChangingPassword, setIsChangingPassword] = useState(false);
-  const [isLoggingOutAll, setIsLoggingOutAll] = useState(false);
 
   const isPasswordValid = newPassword.length >= 8 && newPassword.length <= 72 && /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/.test(newPassword);
   
@@ -58,30 +57,6 @@ export default function SecurityScreen() {
     }
   };
 
-  const handleLogoutAllDevices = () => {
-    Alert.alert(
-      'Logout All Devices',
-      'This will sign you out on all devices. Continue?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Continue', 
-          style: 'destructive',
-          onPress: async () => {
-            setIsLoggingOutAll(true);
-            try {
-              await authService.logoutAllDevices();
-              signOut();
-            } catch (error: any) {
-              Alert.alert('Error', error.message || 'Could not logout all devices.');
-            } finally {
-              setIsLoggingOutAll(false);
-            }
-          }
-        }
-      ]
-    );
-  };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
@@ -158,28 +133,6 @@ export default function SecurityScreen() {
           </Pressable>
         </View>
 
-        {/* Device Management Placeholder */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Device Management</Text>
-          <Text style={styles.sectionSubtitle}>
-            Sign out of all other active sessions across your devices.
-          </Text>
-          
-          <Pressable 
-            style={[styles.dangerButton, isLoggingOutAll && styles.buttonDisabled]} 
-            onPress={handleLogoutAllDevices}
-            disabled={isLoggingOutAll}
-          >
-            {isLoggingOutAll ? (
-              <ActivityIndicator color="#ffffff" />
-            ) : (
-              <View style={styles.dangerButtonContent}>
-                <Ionicons name="log-out-outline" size={20} color={colors.danger} />
-                <Text style={styles.dangerButtonText}>Logout All Devices</Text>
-              </View>
-            )}
-          </Pressable>
-        </View>
 
       </ScrollView>
     </View>
@@ -268,23 +221,5 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.7,
-  },
-  dangerButton: {
-    backgroundColor: '#fff0f0',
-    borderWidth: 1,
-    borderColor: '#ffc1c1',
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  dangerButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  dangerButtonText: {
-    fontFamily: 'BeVietnamPro_600SemiBold',
-    color: colors.danger,
-    fontSize: 16,
   },
 });

@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Alert } from 'react-native';
 import { scholarshipService } from '../services/scholarshipService';
 import { aiService } from '../services/aiService';
+import { isOutOfCreditsError } from '../utils/creditUtils';
 
 export function useScholarshipDetail(scholarshipId: number) {
   return useQuery({
@@ -10,11 +11,16 @@ export function useScholarshipDetail(scholarshipId: number) {
   });
 }
 
-export function useScholarshipEligibility(scholarshipId: number) {
+export function useScholarshipEligibility(scholarshipId: number, enabled: boolean = false) {
   return useQuery({
     queryKey: ['eligibility', scholarshipId],
-    queryFn: () => scholarshipService.checkEligibility(scholarshipId),
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    queryFn: () => aiService.checkEligibility(scholarshipId),
+    staleTime: Infinity,
+    enabled,
+    retry: (failureCount, error) => {
+      if (isOutOfCreditsError(error)) return false;
+      return failureCount < 3;
+    }
   });
 }
 
@@ -68,7 +74,7 @@ export function useScholarshipMatches() {
   return useQuery({
     queryKey: ['scholarshipMatches'],
     queryFn: () => aiService.getScholarshipMatches(),
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: Infinity,
   });
 }
 
@@ -76,13 +82,15 @@ export function useTriggerMatching() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: () => aiService.getScholarshipMatches(),
+    mutationFn: () => aiService.getScholarshipMatches(true),
     onSuccess: (data) => {
       // Directly update the cache with fresh results
       queryClient.setQueryData(['scholarshipMatches'], data);
     },
     onError: (err: any) => {
-      Alert.alert('Matching Error', err?.message ?? 'Failed to find matches');
+      if (!isOutOfCreditsError(err)) {
+        Alert.alert('Matching Error', err?.message ?? 'Failed to find matches');
+      }
     },
   });
 }

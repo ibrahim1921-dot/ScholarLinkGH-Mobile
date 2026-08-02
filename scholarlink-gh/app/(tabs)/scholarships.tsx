@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { FlatList, StyleSheet, View, Text, Pressable, ScrollView, ImageBackground, ActivityIndicator, RefreshControl } from 'react-native';
+import { FlatList, StyleSheet, View, Text, Pressable, ScrollView, ImageBackground, ActivityIndicator, RefreshControl, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { AppTextInput } from '../../components/AppTextInput';
@@ -15,6 +15,12 @@ import { scholarshipService, ScholarshipFilters } from '../../services/scholarsh
 import { Scholarship } from '../../types/api';
 import { useSavedScholarships, useScholarshipMatches, useTriggerMatching } from '../../hooks/useScholarship';
 import { useUnreadNotificationCount } from '../../hooks/useNotifications';
+import { useProfileCompleteness } from '../../hooks/useProfile';
+import { usePayment } from '../../hooks/usePayment';
+import { paymentService } from '../../services/paymentService';
+import { isOutOfCreditsError, BUNDLE_CREDITS, BUNDLE_PRICE_GHS } from '../../utils/creditUtils';
+import { OutOfCreditsModal } from '../../components/OutOfCreditsModal';
+import { StalenessNudge } from '../../components/StalenessNudge';
 
 // Status filter display labels
 const STATUS_OPTIONS = ['OPEN', 'CLOSING_SOON', 'CLOSED', 'FULL'];
@@ -52,17 +58,23 @@ export default function ScholarshipsScreen() {
   const [hasMore, setHasMore] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await loadPage(0);
-    setRefreshing(false);
-  }, [loadPage]);
-
   // ── Filter state (mutual exclusivity enforced via single ActiveFilter) ──
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>(null);
 
   // ── Matches state (relocated from Home) ──
   const { data: matchesData = [], refetch: refetchMatches } = useScholarshipMatches();
+  
+  const { data: completenessData } = useProfileCompleteness();
+  const completenessScore = completenessData?.completeness ?? 0;
+  const nextStep = completenessData?.nextStep ?? "/profile-setup";
+
+  const handleProfilePress = () => {
+    if (completenessScore === 100) {
+      router.push("/profile-summary");
+    } else {
+      router.push(nextStep as any);
+    }
+  };
   
   const onRefreshMatches = useCallback(async () => {
     setRefreshing(true);
@@ -71,6 +83,9 @@ export default function ScholarshipsScreen() {
   }, [refetchMatches]);
   const triggerMatchingMutation = useTriggerMatching();
   const [matchCooldown, setMatchCooldown] = useState(0);
+
+  const { paymentLoading, processPayment, renderPaymentResult } = usePayment();
+  const [outOfCreditsVisible, setOutOfCreditsVisible] = useState(false);
 
   // ── Lookup data for filter sheets ──
   const [countries, setCountries] = useState<string[]>([]);
@@ -133,10 +148,16 @@ export default function ScholarshipsScreen() {
     }
   }, [search]);
 
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadPage(0);
+    setRefreshing(false);
+  }, [loadPage]);
+
   // ── Initial load ──
   useEffect(() => {
     loadPage(0);
-  }, []);
+  }, [loadPage]);
 
   // ── Read deep-link filter param (e.g. from Home "View All") ──
   useEffect(() => {
@@ -194,12 +215,27 @@ export default function ScholarshipsScreen() {
   })();
 
   // ── Trigger matching handler ──
+  const executePurchase = async () => {
+    setOutOfCreditsVisible(false);
+    const result = await processPayment((callbackUrl) => paymentService.initializeAiCreditPurchase(callbackUrl));
+    if (result === 'SUCCESS') {
+      handleFindMatches();
+    }
+  };
+
   const handleFindMatches = () => {
-    if (triggerMatchingMutation.isPending || matchCooldown > 0) return;
+    if (triggerMatchingMutation.isPending || matchCooldown > 0 || paymentLoading) return;
     triggerMatchingMutation.mutate(undefined, {
       onSuccess: () => {
         setMatchCooldown(30);
       },
+      onError: (err: any) => {
+        if (isOutOfCreditsError(err)) {
+          setOutOfCreditsVisible(true);
+        } else {
+          Alert.alert("Error", err.message);
+        }
+      }
     });
   };
 
@@ -231,6 +267,12 @@ export default function ScholarshipsScreen() {
 
   return (
     <View style={styles.container}>
+      {renderPaymentResult()}
+      <OutOfCreditsModal 
+        visible={outOfCreditsVisible} 
+        onClose={() => setOutOfCreditsVisible(false)} 
+        onBuy={executePurchase} 
+      />
       {/* TopAppBar */}
       <ImageBackground
         source={require("../../assets/images/header-scholarships.jpg")}
@@ -350,11 +392,20 @@ export default function ScholarshipsScreen() {
                   {matchesData.length} Match{matchesData.length !== 1 ? 'es' : ''} Found
                 </Text>
                 <Pressable
-                  style={[styles.refreshBtn, (triggerMatchingMutation.isPending || matchCooldown > 0) && styles.refreshBtnDisabled]}
-                  onPress={handleFindMatches}
-                  disabled={triggerMatchingMutation.isPending || matchCooldown > 0}
+                  style={[styles.refreshBtn, (completenessScore < 45 || triggerMatchingMutation.isPending || matchCooldown > 0 || paymentLoading) && styles.refreshBtnDisabled]}
+                  onPress={() => {
+                    if (completenessScore < 45) {
+                      Alert.alert("Profile Incomplete", `Complete your profile to unlock AI matching (${completenessScore}% complete)`, [
+                        { text: "Cancel", style: "cancel" },
+                        { text: "Update Profile", onPress: handleProfilePress }
+                      ]);
+                      return;
+                    }
+                    handleFindMatches();
+                  }}
+                  disabled={completenessScore < 45 || triggerMatchingMutation.isPending || matchCooldown > 0 || paymentLoading}
                 >
-                  {triggerMatchingMutation.isPending ? (
+                  {triggerMatchingMutation.isPending || paymentLoading ? (
                     <ActivityIndicator color={colors.primary} size="small" />
                   ) : (
                     <Ionicons
@@ -367,6 +418,11 @@ export default function ScholarshipsScreen() {
               </View>
               {matchCooldown > 0 && (
                 <Text style={styles.cooldownText}>Refresh available in {matchCooldown}s</Text>
+              )}
+              {matchesData.length > 0 && (
+                <View style={{ marginBottom: 16, marginTop: -4 }}>
+                  <StalenessNudge matchedAt={matchesData[0].matchedAt} />
+                </View>
               )}
               {/* Matched scholarship cards */}
               {matchesData.map((match) => (
@@ -381,22 +437,24 @@ export default function ScholarshipsScreen() {
             // ── Matches empty state with CTA ──
             <View style={styles.matchesEmptyContainer}>
               <View style={styles.matchesEmptyIconBg}>
-                <Ionicons name="sparkles" size={40} color={colors.primary} />
+                <Ionicons name={completenessScore < 45 ? "alert-circle" : "sparkles"} size={40} color={colors.primary} />
               </View>
-              <Text style={styles.matchesEmptyTitle}>No matches yet</Text>
+              <Text style={styles.matchesEmptyTitle}>{completenessScore < 45 ? "Profile Incomplete" : "No matches yet"}</Text>
               <Text style={styles.matchesEmptyDesc}>
-                Let our AI analyze your profile and find the best scholarship matches for you.
+                {completenessScore < 45 
+                  ? `Complete your profile to unlock AI matching (${completenessScore}% complete).`
+                  : "Let our AI analyze your profile and find the best scholarship matches for you."}
               </Text>
               <Pressable
-                style={[styles.findMatchesBtn, (triggerMatchingMutation.isPending || matchCooldown > 0) && styles.findMatchesBtnDisabled]}
-                onPress={handleFindMatches}
-                disabled={triggerMatchingMutation.isPending || matchCooldown > 0}
+                style={[styles.findMatchesBtn, (triggerMatchingMutation.isPending || matchCooldown > 0 || paymentLoading) && styles.findMatchesBtnDisabled]}
+                onPress={completenessScore < 45 ? handleProfilePress : handleFindMatches}
+                disabled={triggerMatchingMutation.isPending || matchCooldown > 0 || paymentLoading}
               >
-                {triggerMatchingMutation.isPending ? (
+                {triggerMatchingMutation.isPending || paymentLoading ? (
                   <ActivityIndicator color="#ffffff" size="small" />
                 ) : (
                   <Text style={styles.findMatchesBtnText}>
-                    {matchCooldown > 0 ? `Try again in ${matchCooldown}s` : 'Find My Matches'}
+                    {completenessScore < 45 ? "Complete Profile" : matchCooldown > 0 ? `Try again in ${matchCooldown}s` : 'Find My Matches'}
                   </Text>
                 )}
               </Pressable>

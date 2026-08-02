@@ -14,6 +14,10 @@ import { documentService } from '../services/documentService';
 import { DocumentUpload } from '../types/api';
 import { useDisclaimer } from '../hooks/useDisclaimer';
 import { DocumentCard } from '../components/documents/DocumentCard';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import { API_BASE_URL } from '../services/apiClient';
+import { tokenStore } from '../services/tokenStore';
 
 export default function DocumentsScreen() {
   const insets = useSafeAreaInsets();
@@ -153,6 +157,41 @@ export default function DocumentsScreen() {
       },
     ]);
   };
+
+  const viewDocument = async (item: DocumentUpload) => {
+    try {
+      const token = await tokenStore.getAccessToken();
+      if (!token) throw new Error('Not authenticated');
+
+      const fileUri = `${FileSystem.documentDirectory}${item.filename}`;
+      const url = `${API_BASE_URL}/api/v1/documents/${item.id}/download`;
+
+      // Check if file is already downloaded
+      const fileInfo = await FileSystem.getInfoAsync(fileUri);
+      
+      let localUri = fileUri;
+      if (!fileInfo.exists) {
+        setUploading(true); // Re-use uploading state for downloading overlay
+        const downloadRes = await FileSystem.downloadAsync(url, fileUri, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        localUri = downloadRes.uri;
+        setUploading(false);
+      }
+
+      const isSharingAvailable = await Sharing.isAvailableAsync();
+      if (isSharingAvailable) {
+        await Sharing.shareAsync(localUri);
+      } else {
+        Alert.alert('Error', 'Sharing is not available on this device');
+      }
+    } catch (e: any) {
+      setUploading(false);
+      Alert.alert('Download Failed', e?.message ?? 'Could not download the document');
+    }
+  };
   if (loading || isFetchingStatus) return <Screen scroll={false}><LoadingState /></Screen>;
   if (error) return <Screen scroll={false}><ErrorState message={error} onRetry={fetchAll} /></Screen>;
 
@@ -230,7 +269,7 @@ export default function DocumentsScreen() {
           ) : (
             <View style={styles.docsList}>
               {docs.map((item) => (
-                <DocumentCard key={item.id} item={item} onDelete={deleteDocument} />
+                <DocumentCard key={item.id} item={item} onDelete={deleteDocument} onView={viewDocument} />
               ))}
             </View>
           )}

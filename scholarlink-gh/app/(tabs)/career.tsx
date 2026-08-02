@@ -12,6 +12,7 @@ import { AppTextInput } from '../../components/AppTextInput';
 import { colors } from '../../constants/colors';
 import { jobService } from '../../services/jobService';
 import { aiService } from '../../services/aiService';
+import { documentService } from '../../services/documentService';
 import { useSavedJobs, useToggleSaveJob } from '../../hooks/useJob';
 import { getCountdownLabel, formatDeadline } from '../../utils/date';
 import { JobListing } from '../../types/api';
@@ -27,10 +28,9 @@ export default function CareerScreen() {
 
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
-  const [cvModalVisible, setCvModalVisible] = useState(false);
-  const [cvLoading, setCvLoading] = useState(false);
-  const [generatedCv, setGeneratedCv] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [checkingDocs, setCheckingDocs] = useState(false);
+  const [customAlertVisible, setCustomAlertVisible] = useState(false);
 
   const { data: savedJobs } = useSavedJobs();
   const toggleSaveMutation = useToggleSaveJob();
@@ -116,22 +116,26 @@ export default function CareerScreen() {
   const displayData = activeFilter === 'Saved' ? filteredSavedJobs : jobs;
 
   const handleGenerateCV = async () => {
-    if (displayData.length === 0) {
-      Alert.alert("No Jobs Found", "There are no jobs to tailor the CV to.");
-      return;
-    }
-    const targetJob = displayData[0]; // Tailor to the first job for this example
-    setCvModalVisible(true);
-    setCvLoading(true);
-    setGeneratedCv(null);
+    setCheckingDocs(true);
     try {
-      const cvText = await jobService.generateTailoredCv(targetJob.id);
-      setGeneratedCv(cvText);
-    } catch (e: any) {
-      Alert.alert("Error", e?.message ?? "Failed to generate CV.");
-      setCvModalVisible(false);
+      const docs = await documentService.getDocuments();
+      const hasCV = docs.some(d => 
+        d.document_type?.toUpperCase() === 'CV' || 
+        d.document_type?.toUpperCase() === 'RESUME' ||
+        d.filename?.toLowerCase().includes('cv') ||
+        d.filename?.toLowerCase().includes('resume')
+      );
+
+      if (hasCV) {
+        setCustomAlertVisible(true);
+      } else {
+        router.push('/(tabs)/assistant?action=generateCv');
+      }
+    } catch (e) {
+      // If document check fails, fallback to just navigating
+      router.push('/(tabs)/assistant?action=generateCv');
     } finally {
-      setCvLoading(false);
+      setCheckingDocs(false);
     }
   };
 
@@ -199,12 +203,16 @@ export default function CareerScreen() {
             {/* AI Quick Action Card */}
             <View style={styles.aiCard}>
               <View style={styles.aiCardLeft}>
-                <Text style={styles.aiCardTitle}>Tailor Your Profile</Text>
-                <Text style={styles.aiCardSubtitle}>Our AI can instantly generate a custom CV for these specific roles.</Text>
+                <Text style={styles.aiCardTitle}>Generate Your Profile CV</Text>
+                <Text style={styles.aiCardSubtitle}>Our AI can instantly generate a custom CV to boost your applications.</Text>
               </View>
-              <Pressable style={styles.aiCardBtn} onPress={handleGenerateCV}>
-                <Ionicons name="color-wand" size={16} color={colors.primary} style={{ marginRight: 4 }} />
-                <Text style={styles.aiCardBtnText}>Generate CV</Text>
+              <Pressable style={styles.aiCardBtn} onPress={handleGenerateCV} disabled={checkingDocs}>
+                {checkingDocs ? (
+                  <ActivityIndicator size="small" color={colors.primary} style={{ marginRight: 4 }} />
+                ) : (
+                  <Ionicons name="color-wand" size={16} color={colors.primary} style={{ marginRight: 4 }} />
+                )}
+                <Text style={styles.aiCardBtnText}>{checkingDocs ? "Checking..." : "Generate CV"}</Text>
               </Pressable>
             </View>
 
@@ -229,6 +237,8 @@ export default function CareerScreen() {
                 countdownLabel={getCountdownLabel(daysUntilDeadline)}
                 imageUrl={item.imageUrl}
                 applicationUrl={item.applicationUrl}
+                sponsored={item.sponsored}
+                fee={item.assistedApplicationFee}
                 onPress={() => router.push(`/job/${item.id}` as any)}
               >
                 <View style={styles.jobActions}>
@@ -258,30 +268,48 @@ export default function CareerScreen() {
         }
       />
 
-      <Modal
-        visible={cvModalVisible}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setCvModalVisible(false)}
-      >
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>AI CV Generation</Text>
-            <Pressable onPress={() => setCvModalVisible(false)} style={styles.modalCloseBtn}>
-              <Ionicons name="close" size={24} color={colors.ink} />
-            </Pressable>
-          </View>
-          {cvLoading ? (
-            <View style={styles.modalContentCentered}>
-              <ActivityIndicator size="large" color={colors.primary} />
-              <Text style={styles.modalLoadingText}>Generating your tailored CV...</Text>
+      {/* Custom Alert Modal */}
+      <Modal visible={customAlertVisible} animationType="fade" transparent>
+        <View style={styles.customAlertOverlay}>
+          <View style={styles.customAlertCard}>
+            <View style={styles.customAlertIconContainer}>
+              <Ionicons name="document-text" size={32} color={colors.primary} />
+              <View style={styles.customAlertCheckBadge}>
+                <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
+              </View>
             </View>
-          ) : (
-            <ScrollView style={styles.modalContent} contentContainerStyle={styles.modalContentInner}>
-              <Text style={styles.cvText}>{generatedCv}</Text>
-            </ScrollView>
-          )}
-        </SafeAreaView>
+            <Text style={styles.customAlertTitle}>CV Already Exists</Text>
+            <Text style={styles.customAlertMessage}>
+              We found an existing CV in your vault. Would you like to review it, or generate a brand new one?
+            </Text>
+            <View style={styles.customAlertButtons}>
+              <Pressable
+                style={[styles.customAlertBtn, styles.customAlertBtnPrimary]}
+                onPress={() => {
+                  setCustomAlertVisible(false);
+                  router.push('/documents' as any);
+                }}
+              >
+                <Text style={styles.customAlertBtnTextPrimary}>Review It</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.customAlertBtn, styles.customAlertBtnSecondary]}
+                onPress={() => {
+                  setCustomAlertVisible(false);
+                  router.push('/(tabs)/assistant?action=generateCv');
+                }}
+              >
+                <Text style={styles.customAlertBtnTextSecondary}>Generate New</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.customAlertBtn, styles.customAlertBtnCancel]}
+                onPress={() => setCustomAlertVisible(false)}
+              >
+                <Text style={styles.customAlertBtnTextCancel}>Cancel</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
       </Modal>
     </View>
   );
@@ -431,49 +459,96 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.primary,
   },
-  modalContainer: {
+  customAlertOverlay: {
     flex: 1,
-    backgroundColor: '#ffffff',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(195, 198, 209, 0.3)',
-  },
-  modalTitle: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: 18,
-    color: colors.ink,
-  },
-  modalCloseBtn: {
-    padding: 4,
-  },
-  modalContentCentered: {
-    flex: 1,
-    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
     justifyContent: 'center',
+    alignItems: 'center',
     padding: 24,
   },
-  modalLoadingText: {
-    marginTop: 16,
-    fontFamily: 'BeVietnamPro_400Regular',
-    fontSize: 16,
-    color: colors.muted,
+  customAlertCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
+    padding: 24,
+    width: '100%',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
   },
-  modalContent: {
-    flex: 1,
+  customAlertIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#f0f4ff', // light primary tint
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    position: 'relative',
   },
-  modalContentInner: {
-    padding: 20,
+  customAlertCheckBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  cvText: {
+  customAlertTitle: {
+    fontFamily: 'PlusJakartaSans_700Bold',
+    fontSize: 20,
+    color: colors.ink,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  customAlertMessage: {
     fontFamily: 'BeVietnamPro_400Regular',
     fontSize: 14,
-    color: colors.ink,
-    lineHeight: 24,
+    color: colors.muted,
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  customAlertButtons: {
+    width: '100%',
+    gap: 12,
+  },
+  customAlertBtn: {
+    width: '100%',
+    height: 48,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  customAlertBtnPrimary: {
+    backgroundColor: colors.primary,
+  },
+  customAlertBtnSecondary: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  customAlertBtnCancel: {
+    backgroundColor: 'transparent',
+  },
+  customAlertBtnTextPrimary: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: 16,
+    color: '#ffffff',
+  },
+  customAlertBtnTextSecondary: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: 16,
+    color: colors.primary,
+  },
+  customAlertBtnTextCancel: {
+    fontFamily: 'BeVietnamPro_600SemiBold',
+    fontSize: 14,
+    color: colors.muted,
   },
 });

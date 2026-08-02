@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Alert, StyleSheet, Text, View, TextInput, ScrollView, Pressable, Platform, KeyboardAvoidingView, ActivityIndicator, Image, ImageBackground, Modal, TouchableOpacity, FlatList, Keyboard } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams, router } from "expo-router";
 
 import { colors } from "../../constants/colors";
 import { aiService } from "../../services/aiService";
@@ -10,13 +11,17 @@ import { scholarshipService } from "../../services/scholarshipService";
 import { useAuth } from "../../hooks/useAuth";
 import { UserAvatar } from "../../components/UserAvatar";
 import { DocumentUpload, Scholarship } from "../../types/api";
+import { usePayment } from "../../hooks/usePayment";
+import { paymentService } from "../../services/paymentService";
+import { isOutOfCreditsError, BUNDLE_CREDITS, BUNDLE_PRICE_GHS } from "../../utils/creditUtils";
+import { OutOfCreditsModal } from "../../components/OutOfCreditsModal";
 
 interface Message {
   id: string;
   sender: 'ai' | 'user';
   text: string;
   time: string;
-  action?: 'review_mode' | null;
+  action?: 'review_mode' | 'buy_credits' | null;
 }
 
 export default function AssistantScreen() {
@@ -34,6 +39,7 @@ export default function AssistantScreen() {
   const [loading, setLoading] = useState(false);
   const [reviewMode, setReviewMode] = useState(false);
   const [attachedDocument, setAttachedDocument] = useState<DocumentUpload | null>(null);
+  const [aiCredits, setAiCredits] = useState<number | null>(null);
 
   const [docPickerVisible, setDocPickerVisible] = useState(false);
   const [documents, setDocuments] = useState<DocumentUpload[]>([]);
@@ -42,6 +48,9 @@ export default function AssistantScreen() {
   const [scholarshipPickerVisible, setScholarshipPickerVisible] = useState(false);
   const [scholarships, setScholarships] = useState<Scholarship[]>([]);
   const [loadingScholarships, setLoadingScholarships] = useState(false);
+  const [outOfCreditsVisible, setOutOfCreditsVisible] = useState(false);
+
+  const { paymentLoading, processPayment, renderPaymentResult } = usePayment();
 
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -64,7 +73,12 @@ export default function AssistantScreen() {
     };
   }, []);
 
-  const addMessage = (text: string, sender: 'ai' | 'user', action?: 'review_mode' | null) => {
+  // Fetch AI credits on mount
+  useEffect(() => {
+    aiService.getAiCredits().then(setAiCredits).catch(() => setAiCredits(0));
+  }, []);
+
+  const addMessage = (text: string, sender: 'ai' | 'user', action?: 'review_mode' | 'buy_credits' | null) => {
     let finalText = text;
     if (sender === 'ai') {
       finalText = text
@@ -81,6 +95,20 @@ export default function AssistantScreen() {
       action
     };
     setMessages(prev => [...prev, newMessage]);
+  };
+
+  const OUT_OF_CREDITS_MSG = "You've used all your AI credits. Purchase a bundle to continue generating personalized content.";
+
+  const handleBuyCredits = () => {
+    setOutOfCreditsVisible(true);
+  };
+
+  const executePurchase = async () => {
+    setOutOfCreditsVisible(false);
+    const result = await processPayment((callbackUrl) => paymentService.initializeAiCreditPurchase(callbackUrl));
+    if (result === 'SUCCESS') {
+      aiService.getAiCredits().then(setAiCredits).catch(() => {});
+    }
   };
 
   const formatEssayReview = (result: any): string => {
@@ -158,8 +186,14 @@ export default function AssistantScreen() {
         const result = await aiService.askAssistant(userText, attachedDocument?.id);
         addMessage(result, 'ai');
       }
+      // Refresh credit count after successful generation
+      aiService.getAiCredits().then(setAiCredits).catch(() => {});
     } catch (e: any) {
-      addMessage(`Error: ${e?.message ?? "Something went wrong."}`, 'ai');
+      if (isOutOfCreditsError(e)) {
+        addMessage(OUT_OF_CREDITS_MSG, 'ai', 'buy_credits');
+      } else {
+        addMessage(`Error: ${e?.message ?? "Something went wrong."}`, 'ai');
+      }
     } finally {
       setLoading(false);
       setAttachedDocument(null);
@@ -172,8 +206,13 @@ export default function AssistantScreen() {
     try {
       const ps = await aiService.generatePersonalStatement();
       addMessage(`Here is a drafted personal statement:\n\n${ps}`, 'ai');
+      aiService.getAiCredits().then(setAiCredits).catch(() => {});
     } catch (e: any) {
-      addMessage(`Failed to generate: ${e?.message ?? "Unknown error."}`, 'ai');
+      if (isOutOfCreditsError(e)) {
+        addMessage(OUT_OF_CREDITS_MSG, 'ai', 'buy_credits');
+      } else {
+        addMessage(`Failed to generate: ${e?.message ?? "Unknown error."}`, 'ai');
+      }
     } finally {
       setLoading(false);
     }
@@ -185,8 +224,13 @@ export default function AssistantScreen() {
     try {
       const cv = await aiService.generateCv();
       addMessage(`Here is your generated CV:\n\n${cv}`, 'ai');
+      aiService.getAiCredits().then(setAiCredits).catch(() => {});
     } catch (e: any) {
-      addMessage(`Failed to generate: ${e?.message ?? "Unknown error."}`, 'ai');
+      if (isOutOfCreditsError(e)) {
+        addMessage(OUT_OF_CREDITS_MSG, 'ai', 'buy_credits');
+      } else {
+        addMessage(`Failed to generate: ${e?.message ?? "Unknown error."}`, 'ai');
+      }
     } finally {
       setLoading(false);
     }
@@ -198,8 +242,13 @@ export default function AssistantScreen() {
     try {
       const cl = await aiService.generateCoverLetter();
       addMessage(`Here is your drafted cover letter:\n\n${cl}`, 'ai');
+      aiService.getAiCredits().then(setAiCredits).catch(() => {});
     } catch (e: any) {
-      addMessage(`Failed to generate: ${e?.message ?? "Unknown error."}`, 'ai');
+      if (isOutOfCreditsError(e)) {
+        addMessage(OUT_OF_CREDITS_MSG, 'ai', 'buy_credits');
+      } else {
+        addMessage(`Failed to generate: ${e?.message ?? "Unknown error."}`, 'ai');
+      }
     } finally {
       setLoading(false);
     }
@@ -239,8 +288,13 @@ export default function AssistantScreen() {
       const result = await aiService.checkEligibility(scholarship.id);
       const replyText = formatEligibility(scholarship.name, result);
       addMessage(replyText, 'ai');
+      aiService.getAiCredits().then(setAiCredits).catch(() => {});
     } catch (e: any) {
-      addMessage(`Failed to check eligibility: ${e?.message ?? "Unknown error."}`, 'ai');
+      if (isOutOfCreditsError(e)) {
+        addMessage(OUT_OF_CREDITS_MSG, 'ai', 'buy_credits');
+      } else {
+        addMessage(`Failed to check eligibility: ${e?.message ?? "Unknown error."}`, 'ai');
+      }
     } finally {
       setLoading(false);
     }
@@ -254,12 +308,28 @@ export default function AssistantScreen() {
     }, 500);
   };
 
+  const { action } = useLocalSearchParams<{ action?: string }>();
+
+  useEffect(() => {
+    if (action === 'generateCv') {
+      // Clear the param so it doesn't re-trigger if we tab away and back
+      router.setParams({ action: '' });
+      handleGenerateCv();
+    }
+  }, [action]);
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
     >
+      {renderPaymentResult()}
+      <OutOfCreditsModal 
+        visible={outOfCreditsVisible} 
+        onClose={() => setOutOfCreditsVisible(false)} 
+        onBuy={executePurchase} 
+      />
       {/* Top App Bar */}
       <ImageBackground
         source={require("../../assets/images/header-assistant.jpg")}
@@ -272,6 +342,10 @@ export default function AssistantScreen() {
           <Text style={[styles.headerTitle, { color: '#ffffff' }]}>AI Assistant</Text>
         </View>
         <View style={styles.statusBox}>
+          <View style={styles.creditBadge}>
+            <Ionicons name="sparkles" size={12} color="#ffffff" />
+            <Text style={styles.creditText}>{aiCredits !== null ? aiCredits : '...'}</Text>
+          </View>
           <View style={styles.botIconSmall}>
             <Ionicons name="hardware-chip" size={14} color="#1b6d24" />
           </View>
@@ -304,6 +378,19 @@ export default function AssistantScreen() {
                 styles.bubbleText,
                 msg.sender === 'user' ? styles.bubbleTextUser : styles.bubbleTextAi
               ]}>{msg.text}</Text>
+              {msg.action === 'buy_credits' && (
+                <Pressable
+                  style={styles.buyCreditsBtn}
+                  onPress={handleBuyCredits}
+                  disabled={paymentLoading}
+                >
+                  {paymentLoading ? (
+                    <ActivityIndicator size="small" color="#ffffff" />
+                  ) : (
+                    <Text style={styles.buyCreditsBtnText}>Buy {BUNDLE_CREDITS} Credits — ₵{BUNDLE_PRICE_GHS}</Text>
+                  )}
+                </Pressable>
+              )}
               <Text style={[
                 styles.timeText,
                 msg.sender === 'user' ? styles.timeTextUser : styles.timeTextAi
@@ -500,6 +587,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#1b6d24', // secondary
   },
+  creditBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  creditText: {
+    fontFamily: 'BeVietnamPro_600SemiBold',
+    fontSize: 12,
+    color: '#ffffff',
+  },
   chatCanvas: {
     padding: 20,
     paddingBottom: 20,
@@ -581,6 +684,20 @@ const styles = StyleSheet.create({
   timeTextUser: {
     color: 'rgba(255, 255, 255, 0.6)',
     textAlign: 'right',
+  },
+  buyCreditsBtn: {
+    marginTop: 12,
+    backgroundColor: colors.primary,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buyCreditsBtnText: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: 14,
+    color: '#ffffff',
   },
   bottomArea: {
     backgroundColor: 'rgba(249, 249, 254, 0.95)',

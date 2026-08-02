@@ -42,10 +42,8 @@ app-example
 /ios
 /android
 
-# Editor and AI Agent configs
 .vscode/
 .claude/
 
-# Note: google-services.json and GoogleService-Info.plist are intentionally NOT ignored.
-# Google's official documentation states these do not contain sensitive private keys, 
-# and EAS Build requires them to configure Firebase successfully.
+# Environment
+.env

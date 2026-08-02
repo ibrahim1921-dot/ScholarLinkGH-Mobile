@@ -16,6 +16,8 @@ type Props = {
   applicationUrl?: string | null;
   countdownLabel?: string | null;
   matchScore?: number | null;
+  sponsored?: boolean;
+  fee?: number;
   onPress?: () => void;
   statusBadge?: React.ReactNode;
   children?: React.ReactNode;
@@ -32,6 +34,8 @@ export function BaseScholarshipCard({
   applicationUrl,
   countdownLabel,
   matchScore,
+  sponsored,
+  fee,
   onPress,
   statusBadge,
   children,
@@ -116,10 +120,21 @@ export function BaseScholarshipCard({
         <View style={styles.divider} />
 
         <View style={styles.footerRow}>
-          <View style={styles.deadlinePill}>
-            <Text style={styles.deadlinePillText}>
-              Deadline: {deadline || "N/A"}
-            </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={styles.deadlinePill}>
+              <Text style={styles.deadlinePillText}>
+                Deadline: {deadline || "N/A"}
+              </Text>
+            </View>
+            {sponsored ? (
+              <View style={[styles.deadlinePill, { backgroundColor: 'rgba(160, 243, 153, 0.25)', marginLeft: 8 }]}>
+                <Text style={[styles.deadlinePillText, { color: '#005312' }]}>Free to Apply</Text>
+              </View>
+            ) : fee && fee > 0 ? (
+              <View style={[styles.deadlinePill, { backgroundColor: '#f4f3f8', marginLeft: 8 }]}>
+                <Text style={[styles.deadlinePillText, { color: colors.ink }]}>₵{fee} Fee</Text>
+              </View>
+            ) : null}
           </View>
           {statusBadge && <View>{statusBadge}</View>}
         </View>

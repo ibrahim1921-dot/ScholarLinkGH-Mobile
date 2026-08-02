@@ -4,7 +4,7 @@ import { tokenStore } from './tokenStore';
 import { AuthResponse } from '../types/api';
 
 const extra = Constants.expoConfig?.extra as { apiUrl?: string } | undefined;
-const API_BASE_URL = extra?.apiUrl ?? 'http://10.31.55.133:8080';
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || extra?.apiUrl || 'http://10.130.42.133:8080';
 
 const refreshClient = axios.create({
   baseURL: API_BASE_URL,

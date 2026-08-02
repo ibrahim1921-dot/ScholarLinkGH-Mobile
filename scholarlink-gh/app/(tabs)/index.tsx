@@ -16,6 +16,7 @@ import { profileService } from "../../services/profileService";
 import { ApplicationTracker } from "../../types/api";
 import { useQuery } from "@tanstack/react-query";
 import { useSavedScholarships, useScholarshipMatches } from "../../hooks/useScholarship";
+import { useProfileCompleteness } from "../../hooks/useProfile";
 import { useUnreadNotificationCount } from "../../hooks/useNotifications";
 import { ScholarshipCard } from "../../components/ScholarshipCard";
 
@@ -40,11 +41,7 @@ export default function HomeScreen() {
   const { data: matches = [] } = useScholarshipMatches();
   const { data: unreadCount = 0 } = useUnreadNotificationCount();
 
-  const { data: completenessData } = useQuery({
-    queryKey: ['profileCompleteness'],
-    queryFn: profileService.getProfileCompleteness,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-  });
+  const { data: completenessData } = useProfileCompleteness();
 
   const completenessScore = completenessData?.completeness ?? 0;
   const nextStep = completenessData?.nextStep ?? "/profile-setup";
@@ -222,6 +219,22 @@ export default function HomeScreen() {
           );
         })()}
 
+        {/* Payment Banner */}
+        <Pressable 
+          style={styles.paymentBanner}
+          onPress={() => router.push("/credits-billing" as any)}
+        >
+          <View style={styles.paymentBannerIconBox}>
+            <Ionicons name="card" size={20} color="#ffffff" />
+          </View>
+          <View style={styles.paymentBannerContent}>
+            <Text style={styles.paymentBannerTitle}>Payments & Billing</Text>
+            <Text style={styles.paymentBannerDesc}>• AI Credits: Start free, buy more for CVs & tools.</Text>
+            <Text style={styles.paymentBannerDesc}>• Assisted Apps: We apply for you! Fees apply unless sponsored.</Text>
+          </View>
+          <Ionicons name="arrow-forward" size={20} color={colors.primary} />
+        </Pressable>
+
         {/* Quick Stats Row */}
         <View style={styles.quickStatsRow}>
           <Text style={styles.quickStatsText}>
@@ -230,7 +243,7 @@ export default function HomeScreen() {
         </View>
 
         {/* Top Matches (Horizontal) */}
-        {matches.length > 0 && (
+        {matches.length > 0 ? (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Top Matches</Text>
@@ -249,6 +262,34 @@ export default function HomeScreen() {
                 </View>
               ))}
             </ScrollView>
+          </View>
+        ) : (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Top Matches</Text>
+            {completenessScore < 45 ? (
+              <View style={{ backgroundColor: '#ffffff', borderRadius: 16, padding: 20, alignItems: 'center', marginTop: 12, borderWidth: 1, borderColor: 'rgba(195, 198, 209, 0.3)' }}>
+                <Ionicons name="alert-circle" size={32} color={colors.primary} style={{ marginBottom: 12 }} />
+                <Text style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 16, color: colors.ink, marginBottom: 16, textAlign: 'center' }}>Complete your profile to unlock AI matching ({completenessScore}% complete)</Text>
+                <Pressable 
+                  style={{ backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24 }}
+                  onPress={handleProfilePress}
+                >
+                  <Text style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 14, color: '#ffffff' }}>Complete Profile</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <View style={{ backgroundColor: '#ffffff', borderRadius: 16, padding: 20, alignItems: 'center', marginTop: 12, borderWidth: 1, borderColor: 'rgba(195, 198, 209, 0.3)' }}>
+                <Ionicons name="sparkles" size={32} color={colors.primary} style={{ marginBottom: 12 }} />
+                <Text style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 16, color: colors.ink, marginBottom: 8 }}>Find Your Perfect Scholarships</Text>
+                <Text style={{ fontFamily: 'BeVietnamPro_400Regular', fontSize: 14, color: colors.muted, textAlign: 'center', marginBottom: 16 }}>Let our AI match your profile with the best opportunities available right now.</Text>
+                <Pressable 
+                  style={{ backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24 }}
+                  onPress={() => router.push("/(tabs)/scholarships?filter=matches")}
+                >
+                  <Text style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 14, color: '#ffffff' }}>Find Matches</Text>
+                </Pressable>
+              </View>
+            )}
           </View>
         )}
 
@@ -611,5 +652,38 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
+  },
+  paymentBanner: {
+    backgroundColor: 'rgba(0, 51, 102, 0.05)',
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 51, 102, 0.1)',
+  },
+  paymentBannerIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  paymentBannerContent: {
+    flex: 1,
+  },
+  paymentBannerTitle: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    fontSize: 16,
+    color: colors.primary,
+    marginBottom: 4,
+  },
+  paymentBannerDesc: {
+    fontFamily: "BeVietnamPro_400Regular",
+    fontSize: 13,
+    color: colors.muted,
   },
 });

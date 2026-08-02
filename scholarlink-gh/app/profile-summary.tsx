@@ -106,6 +106,7 @@ export default function ProfileSummaryScreen() {
               <View style={styles.cardBody}>
                 {renderField('Education Level', profile?.educationLevel?.replace('_', ' '))}
                 {renderField('Institution', profile?.institution)}
+                {renderField('Original Location', profile?.originalLocation)}
                 {renderField('Field of Study', profile?.fieldOfStudy)}
                 {renderField('Cumulative GPA', profile?.gpa)}
                 {renderField('Graduation Year', profile?.graduationYear)}

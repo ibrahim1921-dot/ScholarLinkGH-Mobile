@@ -68,8 +68,18 @@ export default function JobDetailScreen() {
 
         <View style={styles.bodySection}>
           <Text style={styles.providerText}>{job.company}</Text>
+          {job.sponsored && (
+            <Text style={{ fontFamily: 'BeVietnamPro_600SemiBold', fontSize: 13, color: colors.primary, marginBottom: 12, marginTop: -8 }}>
+              Sponsored by {job.sponsorName || job.company}
+            </Text>
+          )}
 
           <View style={styles.badgesRow}>
+            {job.sponsored && (
+              <View style={[styles.pillBadge, { backgroundColor: 'rgba(27, 109, 36, 0.1)' }]}>
+                <Text style={[styles.pillBadgeText, { color: '#1b6d24' }]}>Free to Apply</Text>
+              </View>
+            )}
             {job.employmentType && (
               <View style={styles.pillBadge}>
                 <Text style={styles.pillBadgeText}>{job.employmentType.replace(/_/g, ' ')}</Text>

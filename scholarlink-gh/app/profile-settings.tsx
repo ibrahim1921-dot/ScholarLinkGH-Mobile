@@ -30,6 +30,7 @@ type SettingsItem = {
 };
 
 const SETTINGS_ITEMS: SettingsItem[] = [
+  { id: 'billing', title: 'AI Credits & Billing', icon: 'sparkles-outline', route: '/credits-billing' },
   { id: 'vault', title: 'Document Vault', icon: 'folder-open-outline', route: '/documents' },
   { id: 'security', title: 'Security & Password', icon: 'lock-closed-outline', route: '/security' },
 ];
@@ -122,7 +123,7 @@ export default function ProfileSettingsScreen() {
           <Text style={styles.userName}>{user?.username || "Student"}</Text>
           <View style={styles.locationContainer}>
             <Ionicons name="location" size={16} color={colors.muted} />
-            <Text style={styles.locationText}>{profile?.countryPreference || "Location not set"}</Text>
+            <Text style={styles.locationText}>{profile?.originalLocation || "Location not set"}</Text>
           </View>
 
           <Pressable

@@ -4,27 +4,25 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../constants/colors';
 import { useScholarshipApplyFlow } from '../hooks/useScholarshipApplyFlow';
+import { OutOfCreditsModal } from './OutOfCreditsModal';
 
 type ScholarshipApplyModalsProps = ReturnType<typeof useScholarshipApplyFlow>;
 
 export function ScholarshipApplyModals({
   applyModalVisible, setApplyModalVisible,
   selectedScholarship,
-  documents,
-  selectedDocumentIds, setSelectedDocumentIds,
-  draftPersonalStatement, setDraftPersonalStatement,
-  draftLoading,
-  docsLoading,
   applyMethodSheetVisible, setApplyMethodSheetVisible,
   applyingId,
   openAssistedFlow,
-  handleGenerateDraft,
-  handleFinalSubmit
+  handleFinalSubmit,
+  paymentLoading,
+  renderPaymentResult
 }: ScholarshipApplyModalsProps) {
   const insets = useSafeAreaInsets();
 
   return (
     <>
+      {renderPaymentResult()}
       <Modal visible={applyMethodSheetVisible} animationType="slide" transparent>
         <View style={styles.sheetOverlay}>
           <View style={[styles.sheetContent, { paddingBottom: insets.bottom + 20 }]}>
@@ -37,21 +35,21 @@ export function ScholarshipApplyModals({
             <Text style={styles.sheetSubtitle}>How would you like to apply for this scholarship?</Text>
 
             <Pressable 
-              style={[styles.sheetItem, !selectedScholarship?.applicationUrl && { opacity: 0.5 }]}
-              disabled={!selectedScholarship?.applicationUrl}
+              style={[styles.sheetItem, !selectedScholarship?.officialLink && { opacity: 0.5 }]}
+              disabled={!selectedScholarship?.officialLink}
               onPress={() => {
                 setApplyMethodSheetVisible(false);
-                if (selectedScholarship?.applicationUrl) {
-                  const url = selectedScholarship.applicationUrl.startsWith('http') ? selectedScholarship.applicationUrl : `https://${selectedScholarship.applicationUrl}`;
+                if (selectedScholarship?.officialLink) {
+                  const url = selectedScholarship.officialLink.startsWith('http') ? selectedScholarship.officialLink : `https://${selectedScholarship.officialLink}`;
                   Linking.openURL(url).catch(() => Alert.alert('Error', "Couldn't open link"));
                 }
               }}
             >
-              <Ionicons name="open-outline" size={24} color={!selectedScholarship?.applicationUrl ? colors.muted : colors.primary} />
+              <Ionicons name="open-outline" size={24} color={!selectedScholarship?.officialLink ? colors.muted : colors.primary} />
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={[styles.sheetItemText, !selectedScholarship?.applicationUrl && { color: colors.muted }]}>Apply Directly (External Portal)</Text>
+                <Text style={[styles.sheetItemText, !selectedScholarship?.officialLink && { color: colors.muted }]}>Apply Directly (External Portal)</Text>
                 <Text style={styles.sheetItemSubtext}>
-                  {!selectedScholarship?.applicationUrl ? "Not available for this scholarship" : "Takes you to the company's website"}
+                  {!selectedScholarship?.officialLink ? "Not available for this scholarship" : "Takes you to the company's website"}
                 </Text>
               </View>
             </Pressable>
@@ -87,75 +85,39 @@ export function ScholarshipApplyModals({
               <Ionicons name="close" size={24} color={colors.ink} />
             </Pressable>
           </View>
-          <ScrollView style={styles.modalContent} contentContainerStyle={styles.modalContentInner}>
-            <Text style={styles.sectionTitle}>1. Attach Documents</Text>
-            {docsLoading ? (
-              <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: 20 }} />
-            ) : documents.length > 0 ? (
-              <View style={styles.docsList}>
-                {documents.map(doc => {
-                  const isSelected = selectedDocumentIds.includes(doc.id);
-                  return (
-                    <Pressable
-                      key={doc.id}
-                      style={[styles.docItem, isSelected && styles.docItemActive]}
-                      onPress={() => {
-                        if (isSelected) {
-                          setSelectedDocumentIds(prev => prev.filter(id => id !== doc.id));
-                        } else {
-                          setSelectedDocumentIds(prev => [...prev, doc.id]);
-                        }
-                      }}
-                    >
-                      <Ionicons 
-                        name={isSelected ? "checkbox" : "square-outline"} 
-                        size={24} 
-                        color={isSelected ? colors.primary : colors.muted} 
-                      />
-                      <View style={styles.docItemTextWrap}>
-                        <Text style={[styles.docItemTitle, isSelected && { color: colors.primary }]}>{doc.filename}</Text>
-                        <Text style={styles.docItemSubtitle}>{doc.document_type}</Text>
-                      </View>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            ) : (
-              <Text style={styles.emptyDocsText}>No documents in your Vault. You can submit without documents or add them in your Profile.</Text>
-            )}
-
-            <View style={styles.divider} />
-            <Text style={styles.sectionTitle}>2. Personal Statement</Text>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <Text style={styles.subsectionSubtitle}>Review and edit your personal statement.</Text>
-              <Pressable style={styles.btnSmallGenerate} onPress={handleGenerateDraft} disabled={draftLoading}>
-                {draftLoading ? (
-                  <ActivityIndicator size="small" color="#ffffff" />
-                ) : (
-                  <>
-                    <Ionicons name="color-wand" size={14} color="#ffffff" style={{ marginRight: 4 }} />
-                    <Text style={styles.btnSmallGenerateText}>AI Draft</Text>
-                  </>
-                )}
-              </Pressable>
-            </View>
-            <TextInput
-              style={styles.coverLetterInput}
-              multiline
-              placeholder="Write your personal statement here..."
-              placeholderTextColor={colors.muted}
-              value={draftPersonalStatement}
-              onChangeText={setDraftPersonalStatement}
-              textAlignVertical="top"
-            />
-          </ScrollView>
+          <View style={[styles.modalContent, styles.modalContentInner, { justifyContent: 'center', alignItems: 'center' }]}>
+            <Ionicons name="document-text-outline" size={64} color={colors.primary} style={{ marginBottom: 16 }} />
+            <Text style={{ fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 18, color: colors.ink, textAlign: 'center', marginBottom: 8 }}>
+              Ready to Submit?
+            </Text>
+            <Text style={{ fontFamily: 'BeVietnamPro_400Regular', fontSize: 14, color: colors.muted, textAlign: 'center', lineHeight: 22 }}>
+              Your profile information and vault documents (including your personal statement) will be securely shared with the scholarship provider.
+            </Text>
+          </View>
           <View style={styles.modalFooter}>
+            {selectedScholarship?.sponsored ? (
+              <View style={{ backgroundColor: 'rgba(27, 109, 36, 0.1)', padding: 12, borderRadius: 8, marginBottom: 12, alignItems: 'center' }}>
+                <Text style={{ fontFamily: 'BeVietnamPro_600SemiBold', fontSize: 13, color: '#1b6d24' }}>
+                  Free to Apply — Sponsored by {selectedScholarship.sponsorName || selectedScholarship.provider}
+                </Text>
+              </View>
+            ) : selectedScholarship?.assistedApplicationFee && selectedScholarship.assistedApplicationFee > 0 ? (
+              <View style={{ backgroundColor: '#f4f3f8', padding: 12, borderRadius: 8, marginBottom: 12, alignItems: 'center' }}>
+                <Text style={{ fontFamily: 'BeVietnamPro_600SemiBold', fontSize: 13, color: colors.ink }}>
+                  This service costs ₵{selectedScholarship.assistedApplicationFee} — you'll be asked to pay before submitting.
+                </Text>
+              </View>
+            ) : null}
             <Pressable 
-              style={[styles.btnPrimaryLg, applyingId === selectedScholarship?.id && { opacity: 0.7 }]} 
+              style={[styles.btnPrimaryLg, (applyingId === selectedScholarship?.id || paymentLoading) && { opacity: 0.7 }]} 
               onPress={handleFinalSubmit}
-              disabled={applyingId === selectedScholarship?.id}
+              disabled={applyingId === selectedScholarship?.id || paymentLoading}
             >
-              <Text style={styles.btnPrimaryLgText}>Submit Application</Text>
+              {paymentLoading ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <Text style={styles.btnPrimaryLgText}>Submit Application</Text>
+              )}
             </Pressable>
           </View>
         </SafeAreaView>
